@@ -54,6 +54,7 @@ function Footer() {
               <Link to="/daya-tarik">Daya Tarik</Link>
               <Link to="/fasilitas">Fasilitas</Link>
               <Link to="/galeri">Galeri</Link>
+              <Link to="/festival">Festival</Link>
               <Link to="/lokasi">Lokasi</Link>
             </div>
 
