@@ -10,10 +10,11 @@ import Lokasi from './pages/Lokasi';
 import Kontak from './pages/Kontak';
 import Admin from './pages/Admin';
 import Login from './pages/Login';
+import { getToken } from './auth';
 
+// Hanya mengecek token ada; keabsahannya diperiksa backend di setiap request
 function RequireAuth({ children }) {
-  const isLoggedIn = localStorage.getItem('isAdminLoggedIn') === 'true';
-  if (!isLoggedIn) {
+  if (!getToken()) {
     return <Navigate to="/login" replace />;
   }
   return children;

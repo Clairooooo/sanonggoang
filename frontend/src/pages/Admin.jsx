@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { authFetch, logout } from '../auth';
 
 const baseUrl = 'http://localhost:5000';
 const PAGE_SIZE = 6;
@@ -11,7 +12,7 @@ function useResource(endpoint) {
 
   const loadData = () => {
     setLoading(true);
-    fetch(url)
+    authFetch(url)
       .then((res) => res.json())
       .then((data) => {
         setItems(Array.isArray(data) ? data : []);
@@ -193,7 +194,7 @@ function DataManager({ res, search }) {
     if (file) formData.append('gambar', file);
     if (editingId && editingGambarLama) formData.append('gambarLama', editingGambarLama);
 
-    fetch(targetUrl, { method, body: formData })
+    authFetch(targetUrl, { method, body: formData })
       .then((r) => r.json())
       .then(() => {
         resetForm();
@@ -212,7 +213,7 @@ function DataManager({ res, search }) {
 
   const handleDelete = (id) => {
     if (!window.confirm('Yakin ingin menghapus data ini?')) return;
-    fetch(`${url}/${id}`, { method: 'DELETE' })
+    authFetch(`${url}/${id}`, { method: 'DELETE' })
       .then(() => loadData())
       .catch((err) => console.error('Gagal hapus data:', err));
   };
@@ -331,7 +332,7 @@ function GaleriManager({ res, search }) {
     formData.append('judul', judul);
     formData.append('gambar', file);
 
-    fetch(url, { method: 'POST', body: formData })
+    authFetch(url, { method: 'POST', body: formData })
       .then((r) => r.json())
       .then(() => {
         setJudul('');
@@ -344,7 +345,7 @@ function GaleriManager({ res, search }) {
 
   const handleDelete = (id) => {
     if (!window.confirm('Yakin ingin menghapus foto ini?')) return;
-    fetch(`${url}/${id}`, { method: 'DELETE' })
+    authFetch(`${url}/${id}`, { method: 'DELETE' })
       .then(() => loadData())
       .catch((err) => console.error('Gagal hapus foto:', err));
   };
@@ -401,14 +402,14 @@ function PesanManager({ res, search }) {
   const [page, setPage] = useState(1);
 
   const handleTandaiDibaca = (id) => {
-    fetch(`${url}/${id}/baca`, { method: 'PUT' })
+    authFetch(`${url}/${id}/baca`, { method: 'PUT' })
       .then(() => loadData())
       .catch((err) => console.error('Gagal menandai pesan:', err));
   };
 
   const handleDelete = (id) => {
     if (!window.confirm('Yakin ingin menghapus pesan ini?')) return;
-    fetch(`${url}/${id}`, { method: 'DELETE' })
+    authFetch(`${url}/${id}`, { method: 'DELETE' })
       .then(() => loadData())
       .catch((err) => console.error('Gagal hapus pesan:', err));
   };
@@ -524,10 +525,7 @@ function Admin() {
     setSearch('');
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('isAdminLoggedIn');
-    window.location.href = '/login';
-  };
+  const handleLogout = logout;
 
   return (
     <div className="admin-shell">
