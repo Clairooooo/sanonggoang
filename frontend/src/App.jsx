@@ -6,6 +6,7 @@ import Profil from './pages/Profil';
 import DayaTarik from './pages/DayaTarik';
 import Fasilitas from './pages/Fasilitas';
 import Galeri from './pages/Galeri';
+import Festival from './pages/Festival';
 import Lokasi from './pages/Lokasi';
 import Kontak from './pages/Kontak';
 import Admin from './pages/Admin';
@@ -36,6 +37,7 @@ function Layout() {
           <Route path="/daya-tarik" element={<DayaTarik />} />
           <Route path="/fasilitas" element={<Fasilitas />} />
           <Route path="/galeri" element={<Galeri />} />
+          <Route path="/festival" element={<Festival />} />
           <Route path="/lokasi" element={<Lokasi />} />
           <Route path="/kontak" element={<Kontak />} />
           <Route path="/login" element={<Login />} />

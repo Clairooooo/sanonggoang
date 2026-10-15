@@ -1,12 +1,13 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
+// Tidak ada menu "Beranda": logo dan nama web di kiri sudah mengarah ke Beranda
 const links = [
-  { to: '/', label: 'Beranda' },
   { to: '/profil', label: 'Profil' },
   { to: '/daya-tarik', label: 'Daya Tarik' },
   { to: '/fasilitas', label: 'Fasilitas' },
   { to: '/galeri', label: 'Galeri' },
+  { to: '/festival', label: 'Festival' },
   { to: '/lokasi', label: 'Lokasi' },
 ];
 
@@ -14,21 +15,8 @@ const ctaLink = { to: '/kontak', label: 'Kontak' };
 
 function Navbar() {
   const location = useLocation();
-  const isBeranda = location.pathname === '/';
-  const [visible, setVisible] = useState(!isBeranda);
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  useEffect(() => {
-    if (!isBeranda) {
-      setVisible(true);
-      return;
-    }
-    setVisible(false);
-    function onScroll() {
-      setVisible(window.scrollY > window.innerHeight * 0.7);
-    }
-    window.addEventListener('scroll', onScroll);
-    return () => window.removeEventListener('scroll', onScroll);
-  }, [isBeranda]);
 
   return (
     <div
@@ -42,13 +30,15 @@ function Navbar() {
         display: 'flex',
         justifyContent: 'center',
         padding: '18px 20px 0',
-        pointerEvents: visible ? 'auto' : 'none',
-        transform: visible ? 'translateY(0)' : 'translateY(-130%)',
-        transition: 'transform 0.4s ease',
       }}
     >
       <nav className="site-navbar">
-        <Link to="/" className="site-navbar__brand">
+        <Link
+          to="/"
+          className="site-navbar__brand"
+          aria-label="Sano Nggoang, ke Beranda"
+          onClick={() => setMenuOpen(false)}
+        >
           <span className="site-navbar__logo">S</span>
           <span className="site-navbar__brand-name">Sano Nggoang</span>
         </Link>
@@ -68,9 +58,35 @@ function Navbar() {
           })}
         </div>
 
-        <Link to={ctaLink.to} className="site-navbar__cta">
-          {ctaLink.label}
-        </Link>
+        <div className="site-navbar__right">
+          <Link to={ctaLink.to} className="site-navbar__cta">
+            {ctaLink.label}
+          </Link>
+          <button
+            type="button"
+            className="site-navbar__burger"
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label={menuOpen ? 'Tutup menu' : 'Buka menu'}
+            aria-expanded={menuOpen}
+          >
+            {menuOpen ? '✕' : '☰'}
+          </button>
+        </div>
+
+        {menuOpen && (
+          <div className="site-navbar__mobile">
+            {links.map((l) => (
+              <Link
+                key={l.to}
+                to={l.to}
+                className={location.pathname === l.to ? 'is-active' : ''}
+                onClick={() => setMenuOpen(false)}
+              >
+                {l.label}
+              </Link>
+            ))}
+          </div>
+        )}
       </nav>
 
       <style>{`
@@ -157,9 +173,47 @@ function Navbar() {
           box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
         }
 
-        @media (max-width: 900px) {
+        .site-navbar { position: relative; }
+        .site-navbar__right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+        .site-navbar__burger {
+          display: none;
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          border: 1px solid rgba(234, 243, 222, 0.25);
+          background: rgba(255, 255, 255, 0.06);
+          color: #EAF3DE;
+          font-size: 16px;
+          cursor: pointer;
+        }
+        .site-navbar__mobile {
+          display: none;
+          position: absolute;
+          top: calc(100% + 10px);
+          left: 0;
+          right: 0;
+          flex-direction: column;
+          background: #0B2313;
+          border: 1px solid rgba(234, 243, 222, 0.08);
+          border-radius: 20px;
+          padding: 8px;
+          box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+        }
+        .site-navbar__mobile a {
+          color: rgba(234, 243, 222, 0.85);
+          text-decoration: none;
+          font-size: 15px;
+          padding: 14px 16px;
+          border-radius: 12px;
+        }
+        .site-navbar__mobile a:hover { background: rgba(255, 255, 255, 0.06); }
+        .site-navbar__mobile a.is-active { color: #C8E06A; font-weight: 600; }
+
+        @media (max-width: 960px) {
           .site-navbar__links { display: none; }
           .site-navbar { padding: 10px 12px; }
+          .site-navbar__burger { display: block; }
+          .site-navbar__mobile { display: flex; }
         }
       `}</style>
     </div>
