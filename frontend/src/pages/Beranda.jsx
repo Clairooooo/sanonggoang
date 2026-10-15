@@ -93,30 +93,30 @@ function Beranda() {
           )}
         </nav>
 
-        {/* ===== TEKS DI BAGIAN BAWAH GAMBAR ===== */}
+        {/* ===== TEKS DI TENGAH BAWAH GAMBAR: tombol, judul, deskripsi, indikator ===== */}
         <div className="hero-menu__content">
+          <Link to="/profil" className="hero-menu__cta-main">
+            Pelajari Lebih Lanjut
+          </Link>
           <h1 className="hero-menu__title-main">Danau Sano Nggoang</h1>
           <p className="hero-menu__subtitle">
             Danau vulkanik terbesar di Flores, dikelilingi perbukitan hijau
             dan sumber air panas alami.
           </p>
-          <Link to="/profil" className="hero-menu__cta-main">
-            Pelajari Lebih Lanjut
-          </Link>
-        </div>
 
-        {/* ===== INDIKATOR SLIDE ===== */}
-        <div className="hero-menu__dots">
-          {slides.map((s, i) => (
-            <button
-              key={s.src}
-              type="button"
-              className={i === current ? 'is-active' : ''}
-              onClick={() => setCurrent(i)}
-              aria-label={`Tampilkan gambar ${i + 1}`}
-              aria-current={i === current}
-            />
-          ))}
+          {/* ===== INDIKATOR SLIDE ===== */}
+          <div className="hero-menu__dots">
+            {slides.map((s, i) => (
+              <button
+                key={s.src}
+                type="button"
+                className={i === current ? 'is-active' : ''}
+                onClick={() => setCurrent(i)}
+                aria-label={`Tampilkan gambar ${i + 1}`}
+                aria-current={i === current}
+              />
+            ))}
+          </div>
         </div>
 
         <style>{`
@@ -126,7 +126,7 @@ function Beranda() {
             overflow: hidden;
             display: flex;
             align-items: flex-end;
-            justify-content: flex-start;
+            justify-content: center;
             background: #0B2313;
           }
 
@@ -215,17 +215,17 @@ function Beranda() {
           }
           .hero-menu__mobile a:hover { background: rgba(255, 255, 255, 0.08); color: #C8E06A; }
 
-          /* teks di bagian bawah */
+          /* teks di tengah bawah */
           .hero-menu__content {
             position: relative;
             z-index: 3;
             display: flex;
             flex-direction: column;
-            align-items: flex-start;
-            text-align: left;
+            align-items: center;
+            text-align: center;
             gap: 16px;
-            max-width: 640px;
-            padding: 0 40px 96px;
+            max-width: 900px;
+            padding: 0 40px 48px;
           }
           .hero-menu__title-main {
             color: #EAF3DE;
@@ -243,7 +243,7 @@ function Beranda() {
           }
           .hero-menu__cta-main {
             display: inline-block;
-            margin-top: 6px;
+            margin-bottom: 6px;
             border: 1px solid rgba(234, 243, 222, 0.55);
             border-radius: 999px;
             color: #EAF3DE;
@@ -257,12 +257,10 @@ function Beranda() {
 
           /* titik indikator slide */
           .hero-menu__dots {
-            position: absolute;
-            left: 40px;
-            bottom: 40px;
-            z-index: 3;
             display: flex;
+            justify-content: center;
             gap: 8px;
+            margin-top: 20px;
           }
           .hero-menu__dots button {
             width: 28px;
@@ -296,8 +294,7 @@ function Beranda() {
             .hero-menu__nav-links { display: none; }
             .hero-menu__burger { display: block; }
             .hero-menu__mobile { display: flex; }
-            .hero-menu__content { padding: 0 24px 84px; }
-            .hero-menu__dots { left: 24px; bottom: 36px; }
+            .hero-menu__content { padding: 0 24px 40px; }
             .hero-menu__stats { right: 24px; bottom: 28px; }
           }
           @media (max-width: 600px) {
