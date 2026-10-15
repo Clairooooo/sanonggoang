@@ -29,17 +29,22 @@ function DayaTarik() {
   const [dayaTarik, setDayaTarik] = useState([]);
   const [fasilitas, setFasilitas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [gagal, setGagal] = useState(false);
   const [openFaq, setOpenFaq] = useState(0);
 
   useEffect(() => {
     fetch('http://localhost:5000/api/daya-tarik')
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`Status ${res.status}`);
+        return res.json();
+      })
       .then((data) => {
-        setDayaTarik(data);
+        setDayaTarik(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch((err) => {
         console.error('Gagal ambil data daya tarik:', err);
+        setGagal(true);
         setLoading(false);
       });
 
@@ -81,7 +86,10 @@ function DayaTarik() {
       {/* ===== DAFTAR BERNOMOR (latar berselang-seling) ===== */}
       <main className="dtp-body">
         {loading && <p className="dtp-muted">Memuat data...</p>}
-        {!loading && dayaTarik.length === 0 && (
+        {!loading && gagal && (
+          <p className="dtp-muted">Data daya tarik gagal dimuat. Silakan coba lagi nanti.</p>
+        )}
+        {!loading && !gagal && dayaTarik.length === 0 && (
           <p className="dtp-muted">Belum ada data daya tarik.</p>
         )}
 

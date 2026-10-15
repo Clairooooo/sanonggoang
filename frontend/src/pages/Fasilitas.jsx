@@ -35,6 +35,7 @@ function Fasilitas() {
   const [fasilitas, setFasilitas] = useState([]);
   const [dayaTarik, setDayaTarik] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [gagal, setGagal] = useState(false);
   const [openIndex, setOpenIndex] = useState(0);
   const [openFaq, setOpenFaq] = useState(1);
 
@@ -42,13 +43,17 @@ function Fasilitas() {
 
   useEffect(() => {
     fetch('http://localhost:5000/api/fasilitas')
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`Status ${res.status}`);
+        return res.json();
+      })
       .then((data) => {
-        setFasilitas(data);
+        setFasilitas(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch((err) => {
         console.error('Gagal ambil data fasilitas:', err);
+        setGagal(true);
         setLoading(false);
       });
 
@@ -89,7 +94,10 @@ function Fasilitas() {
 
       <section className="fac-list-wrap">
         {loading && <p className="muted">Memuat data...</p>}
-        {!loading && fasilitas.length === 0 && (
+        {!loading && gagal && (
+          <p className="muted">Data fasilitas gagal dimuat. Silakan coba lagi nanti.</p>
+        )}
+        {!loading && !gagal && fasilitas.length === 0 && (
           <p className="muted">Belum ada data fasilitas.</p>
         )}
 
