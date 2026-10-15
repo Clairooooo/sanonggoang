@@ -3,11 +3,88 @@ const mysql = require('mysql2');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// ===== AUTENTIKASI ADMIN =====
+// Username, password, dan kunci rahasia token disimpan di .env (tidak ikut ke GitHub)
+const { ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_TOKEN_SECRET } = process.env;
+if (!ADMIN_USERNAME || !ADMIN_PASSWORD || !ADMIN_TOKEN_SECRET) {
+  console.error('ADMIN_USERNAME, ADMIN_PASSWORD, dan ADMIN_TOKEN_SECRET wajib diisi di .env');
+  process.exit(1);
+}
+const TOKEN_UMUR_MS = 8 * 60 * 60 * 1000; // token berlaku 8 jam
+
+// Bandingkan dua teks tanpa membocorkan informasi lewat lama waktu pengecekan
+function samaAman(a, b) {
+  const hashA = crypto.createHash('sha256').update(String(a)).digest();
+  const hashB = crypto.createHash('sha256').update(String(b)).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
+}
+
+function tandaTangan(data) {
+  return crypto.createHmac('sha256', ADMIN_TOKEN_SECRET).update(data).digest('base64url');
+}
+
+function buatToken(username) {
+  const payload = Buffer.from(JSON.stringify({ u: username, exp: Date.now() + TOKEN_UMUR_MS })).toString('base64url');
+  return `${payload}.${tandaTangan(payload)}`;
+}
+
+function cekToken(token) {
+  const [payload, signature] = String(token).split('.');
+  if (!payload || !signature || !samaAman(signature, tandaTangan(payload))) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString());
+    return data.exp > Date.now() ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+// Middleware: hanya admin dengan token valid yang boleh lewat
+function wajibAdmin(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+  if (!cekToken(token)) {
+    return res.status(401).json({ error: 'Silakan login sebagai admin' });
+  }
+  next();
+}
+
+// Batasi percobaan login: maksimal 5 kali gagal per 15 menit per alamat IP
+const percobaanLogin = new Map();
+const BATAS_GAGAL = 5;
+const JEDA_MS = 15 * 60 * 1000;
+
+app.post('/api/login', (req, res) => {
+  const ip = req.ip;
+  const catatan = percobaanLogin.get(ip);
+  if (catatan && catatan.gagal >= BATAS_GAGAL && Date.now() - catatan.waktu < JEDA_MS) {
+    return res.status(429).json({ error: 'Terlalu banyak percobaan. Coba lagi dalam 15 menit.' });
+  }
+
+  const { username, password } = req.body || {};
+  const usernameBenar = samaAman(username || '', ADMIN_USERNAME);
+  const passwordBenar = samaAman(password || '', ADMIN_PASSWORD);
+  if (!usernameBenar || !passwordBenar) {
+    const gagal = catatan && Date.now() - catatan.waktu < JEDA_MS ? catatan.gagal + 1 : 1;
+    percobaanLogin.set(ip, { gagal, waktu: Date.now() });
+    return res.status(401).json({ error: 'Username atau password salah.' });
+  }
+
+  percobaanLogin.delete(ip);
+  res.json({ token: buatToken(ADMIN_USERNAME) });
+});
+
+// Dipakai frontend untuk memastikan token masih berlaku
+app.get('/api/me', wajibAdmin, (req, res) => {
+  res.json({ ok: true });
+});
 
 // Folder uploads bisa diakses lewat URL http://localhost:5000/uploads/nama-file.jpg
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -84,7 +161,7 @@ app.get('/api/kontak', (req, res) => {
 });
 
 // GET semua pesan (terbaru dulu)
-app.get('/api/pesan', (req, res) => {
+app.get('/api/pesan', wajibAdmin, (req, res) => {
   db.query('SELECT * FROM pesan ORDER BY created_at DESC', (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(results);
@@ -108,7 +185,7 @@ app.post('/api/pesan', (req, res) => {
 });
 
 // PUT tandai pesan sudah dibaca
-app.put('/api/pesan/:id/baca', (req, res) => {
+app.put('/api/pesan/:id/baca', wajibAdmin, (req, res) => {
   db.query('UPDATE pesan SET dibaca = 1 WHERE id = ?', [req.params.id], (err) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ message: 'Ditandai sudah dibaca' });
@@ -116,7 +193,7 @@ app.put('/api/pesan/:id/baca', (req, res) => {
 });
 
 // DELETE pesan
-app.delete('/api/pesan/:id', (req, res) => {
+app.delete('/api/pesan/:id', wajibAdmin, (req, res) => {
   db.query('DELETE FROM pesan WHERE id = ?', [req.params.id], (err) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ message: 'Berhasil dihapus' });
@@ -124,7 +201,7 @@ app.delete('/api/pesan/:id', (req, res) => {
 });
 
 // ===== DAYA TARIK: Tambah, Ubah, Hapus (dengan upload gambar) =====
-app.post('/api/daya-tarik', upload.single('gambar'), (req, res) => {
+app.post('/api/daya-tarik', wajibAdmin, upload.single('gambar'), (req, res) => {
   const { nama, deskripsi } = req.body;
   const gambar = req.file ? `/uploads/${req.file.filename}` : null;
   if (!nama) return res.status(400).json({ error: 'Nama wajib diisi' });
@@ -138,7 +215,7 @@ app.post('/api/daya-tarik', upload.single('gambar'), (req, res) => {
   );
 });
 
-app.put('/api/daya-tarik/:id', upload.single('gambar'), (req, res) => {
+app.put('/api/daya-tarik/:id', wajibAdmin, upload.single('gambar'), (req, res) => {
   const { nama, deskripsi } = req.body;
   const gambarBaru = req.file ? `/uploads/${req.file.filename}` : req.body.gambarLama || null;
   db.query(
@@ -151,7 +228,7 @@ app.put('/api/daya-tarik/:id', upload.single('gambar'), (req, res) => {
   );
 });
 
-app.delete('/api/daya-tarik/:id', (req, res) => {
+app.delete('/api/daya-tarik/:id', wajibAdmin, (req, res) => {
   db.query('DELETE FROM daya_tarik WHERE id = ?', [req.params.id], (err) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ message: 'Berhasil dihapus' });
@@ -159,7 +236,7 @@ app.delete('/api/daya-tarik/:id', (req, res) => {
 });
 
 // ===== FASILITAS: Tambah, Ubah, Hapus (dengan upload gambar) =====
-app.post('/api/fasilitas', upload.single('gambar'), (req, res) => {
+app.post('/api/fasilitas', wajibAdmin, upload.single('gambar'), (req, res) => {
   const { nama, deskripsi } = req.body;
   const gambar = req.file ? `/uploads/${req.file.filename}` : null;
   if (!nama) return res.status(400).json({ error: 'Nama wajib diisi' });
@@ -173,7 +250,7 @@ app.post('/api/fasilitas', upload.single('gambar'), (req, res) => {
   );
 });
 
-app.put('/api/fasilitas/:id', upload.single('gambar'), (req, res) => {
+app.put('/api/fasilitas/:id', wajibAdmin, upload.single('gambar'), (req, res) => {
   const { nama, deskripsi } = req.body;
   const gambarBaru = req.file ? `/uploads/${req.file.filename}` : req.body.gambarLama || null;
   db.query(
@@ -186,7 +263,7 @@ app.put('/api/fasilitas/:id', upload.single('gambar'), (req, res) => {
   );
 });
 
-app.delete('/api/fasilitas/:id', (req, res) => {
+app.delete('/api/fasilitas/:id', wajibAdmin, (req, res) => {
   db.query('DELETE FROM fasilitas WHERE id = ?', [req.params.id], (err) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ message: 'Berhasil dihapus' });
@@ -194,7 +271,7 @@ app.delete('/api/fasilitas/:id', (req, res) => {
 });
 
 // ===== GALERI: Tambah, Ubah, Hapus (dengan upload gambar) =====
-app.post('/api/galeri', upload.single('gambar'), (req, res) => {
+app.post('/api/galeri', wajibAdmin, upload.single('gambar'), (req, res) => {
   const { judul } = req.body;
   const gambar = req.file ? `/uploads/${req.file.filename}` : null;
   if (!gambar) return res.status(400).json({ error: 'Gambar wajib diisi' });
@@ -208,7 +285,7 @@ app.post('/api/galeri', upload.single('gambar'), (req, res) => {
   );
 });
 
-app.put('/api/galeri/:id', (req, res) => {
+app.put('/api/galeri/:id', wajibAdmin, (req, res) => {
   const { judul } = req.body;
   db.query(
     'UPDATE galeri SET judul = ? WHERE id = ?',
@@ -220,7 +297,7 @@ app.put('/api/galeri/:id', (req, res) => {
   );
 });
 
-app.delete('/api/galeri/:id', (req, res) => {
+app.delete('/api/galeri/:id', wajibAdmin, (req, res) => {
   db.query('DELETE FROM galeri WHERE id = ?', [req.params.id], (err) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ message: 'Berhasil dihapus' });

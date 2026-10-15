@@ -1,20 +1,34 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { setToken } from '../auth';
 
 function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  // Username dan password diperiksa oleh backend, bukan di browser
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (username === 'admin' && password === 'admin') {
-      localStorage.setItem('isAdminLoggedIn', 'true');
-      navigate('/admin');
-    } else {
-      setError('Username atau password salah.');
-    }
+    setError('');
+    setLoading(true);
+    fetch('http://localhost:5000/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    })
+      .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) throw new Error(data.error || 'Login gagal.');
+        setToken(data.token);
+        navigate('/admin');
+      })
+      .catch((err) => {
+        setError(err.message === 'Failed to fetch' ? 'Tidak bisa terhubung ke server.' : err.message);
+        setLoading(false);
+      });
   };
 
   return (
@@ -49,7 +63,9 @@ function Login() {
 
           {error && <p className="login-error">{error}</p>}
 
-          <button type="submit" className="login-btn">Masuk</button>
+          <button type="submit" className="login-btn" disabled={loading}>
+            {loading ? 'Memeriksa...' : 'Masuk'}
+          </button>
         </form>
       </div>
 
