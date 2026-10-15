@@ -43,24 +43,21 @@ const faqData = [
 function Galeri() {
   const [galeri, setGaleri] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [centerIndex, setCenterIndex] = useState(null);
   const [dayaTarik, setDayaTarik] = useState([]);
   const [fasilitas, setFasilitas] = useState([]);
   const [openFaq, setOpenFaq] = useState(1);
 
   const [lightboxIndex, setLightboxIndex] = useState(null);
+  // Rasio lebar/tinggi asli tiap foto, dipakai agar setiap baris grid terisi penuh
+  const [ratios, setRatios] = useState({});
 
   const trackRef = useRef(null); // carousel Daya Tarik
-  const galTrackRef = useRef(null); // track foto galeri
-  const cardRefs = useRef([]);
 
   useEffect(() => {
     fetch('http://localhost:5000/api/galeri')
       .then((res) => res.json())
       .then((data) => {
-        const list = Array.isArray(data) ? data : [];
-        setGaleri(list);
-        setCenterIndex(list.length > 0 ? Math.floor((list.length - 1) / 2) : null);
+        setGaleri(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch((err) => {
@@ -106,45 +103,22 @@ function Galeri() {
         { id: 'f5', judul: 'Jalur Trekking', gambar: null },
       ];
 
-  const mid = centerIndex === null ? Math.floor((items.length - 1) / 2) : centerIndex;
-
   const getSrc = (item) =>
     item.gambar ? `http://localhost:5000${item.gambar}` : item.img || null;
 
-  // Geser track supaya kartu ke-i berada tepat di tengah
-  const centerCard = (i, smooth = true) => {
-    const track = galTrackRef.current;
-    const card = cardRefs.current[i];
-    if (!track || !card) return;
-    const t = track.getBoundingClientRect();
-    const c = card.getBoundingClientRect();
-    const delta = c.left + c.width / 2 - (t.left + t.width / 2);
-    track.scrollBy({ left: delta, behavior: smooth ? 'smooth' : 'auto' });
+  const rememberRatio = (id, img) => {
+    if (!img.naturalWidth || !img.naturalHeight) return;
+    const ratio = img.naturalWidth / img.naturalHeight;
+    setRatios((prev) => (prev[id] === ratio ? prev : { ...prev, [id]: ratio }));
   };
 
-  const selectPhoto = (i) => {
-    setCenterIndex(i);
-    centerCard(i, true);
-  };
-
-  const openLightbox = (i) => {
-    selectPhoto(i);
-    setLightboxIndex(i);
-  };
+  const openLightbox = (i) => setLightboxIndex(i);
 
   const closeLightbox = () => setLightboxIndex(null);
 
   const stepLightbox = (dir) => {
-    const next = (lightboxIndex + dir + items.length) % items.length;
-    setLightboxIndex(next);
-    selectPhoto(next);
+    setLightboxIndex((lightboxIndex + dir + items.length) % items.length);
   };
-
-  // Posisikan foto tengah saat data selesai dimuat
-  useEffect(() => {
-    if (!loading) centerCard(mid, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
 
   // Keyboard + kunci scroll saat lightbox terbuka
   useEffect(() => {
@@ -170,42 +144,45 @@ function Galeri() {
   return (
     <div className="gal" style={{ fontFamily: 'Georgia, serif', marginTop: -72 }}>
       <section className="gal-hero">
-        <p className="gal-hero__kicker">✦ Dokumentasi</p>
-        <h1>
-          Potret terpilih dari keindahan
-          <br />
-          Danau Sano Nggoang
-        </h1>
+        <div className="gal-hero__head">
+          <h1>
+            Kamu sedang menjelajahi
+            <br />
+            Galeri Danau Sano Nggoang
+          </h1>
+          <p className="gal-hero__count">
+            {loading ? 'Memuat galeri...' : `Semua foto (${items.length})`}
+          </p>
+        </div>
 
-        {loading && <p className="gal-muted">Memuat galeri...</p>}
-
-        <div className="gal-track" ref={galTrackRef}>
+        {/* Grid "justified": tiap baris penuh, lebar foto mengikuti rasio aslinya */}
+        <div className="gal-grid">
           {items.map((item, i) => {
-            const diff = Math.abs(i - mid);
-            const scale = 1 - Math.min(diff * 0.1, 0.3);
-            const zIndex = 100 - Math.round(diff);
-
-            const photoStyle = item.gambar
-              ? { backgroundImage: `url(http://localhost:5000${item.gambar})` }
-              : item.img
-              ? { backgroundImage: `url(${item.img})` }
-              : { background: fallbackGradients[i % fallbackGradients.length] };
-
+            const src = getSrc(item);
+            const ratio = ratios[item.id] || 1.5;
             return (
               <button
                 key={item.id}
                 type="button"
-                className="gal-card"
-                ref={(el) => { cardRefs.current[i] = el; }}
+                className="gal-tile"
                 onClick={() => openLightbox(i)}
-                style={{
-                  transform: `scale(${scale})`,
-                  zIndex,
-                  marginLeft: i === 0 ? 0 : -32,
-                }}
+                style={{ '--r': ratio }}
+                aria-label={item.judul ? `Buka foto ${item.judul}` : 'Buka foto'}
               >
-                <div className="gal-card__photo" style={photoStyle} />
-                <p className="gal-card__caption">{item.judul}</p>
+                {src ? (
+                  <img
+                    src={src}
+                    alt={item.judul || ''}
+                    loading="lazy"
+                    onLoad={(e) => rememberRatio(item.id, e.currentTarget)}
+                  />
+                ) : (
+                  <span
+                    className="gal-tile__fill"
+                    style={{ background: fallbackGradients[i % fallbackGradients.length] }}
+                  />
+                )}
+                {item.judul && <span className="gal-tile__caption">{item.judul}</span>}
               </button>
             );
           })}
@@ -383,49 +360,97 @@ function Galeri() {
 
       <style>{`
         .gal-hero {
-          background: #0B2313;
-          padding: calc(72px + 72px) 24px 96px;
+          background: #FBFAF6;
+          padding: calc(72px + 72px) 24px 88px;
+        }
+        .gal-hero__head {
+          max-width: 1100px;
+          margin: 0 auto 48px;
           text-align: center;
         }
-        .gal-hero__kicker {
-          font-family: sans-serif;
-          color: #C8E06A;
-          font-size: 13px;
-          margin: 0 0 18px;
-        }
         .gal-hero h1 {
-          color: #FAEEDA;
+          font-family: Georgia, serif;
+          color: #04342C;
           font-weight: normal;
-          font-size: clamp(1.8rem, 4.5vw, 2.8rem);
-          line-height: 1.3;
-          max-width: 760px;
-          margin: 0 auto 56px;
+          font-size: clamp(1.8rem, 4vw, 2.6rem);
+          line-height: 1.25;
+          margin: 0 0 22px;
         }
-        .gal-muted {
+        .gal-hero__count {
+          display: inline-block;
           font-family: sans-serif;
-          color: #7A9B7A;
-          margin-bottom: 32px;
+          color: #0F6E56;
+          font-size: 13.5px;
+          font-weight: 600;
+          letter-spacing: 0.5px;
+          margin: 0;
+          padding-bottom: 4px;
+          border-bottom: 2px solid #0F6E56;
         }
 
-        .gal-track {
-          position: relative;
-          display: flex;
-          justify-content: flex-start;
-          align-items: center;
-          max-width: 1300px;
+        /* ===== GRID JUSTIFIED ===== */
+        .gal-grid {
+          --row-h: 200px;
+          max-width: 1100px;
           margin: 0 auto;
-          padding: 20px 0 20px;
-          overflow-x: auto;
-          scrollbar-width: none;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
         }
-        .gal-track::-webkit-scrollbar { display: none; }
-        /* Spacer kiri-kanan agar kartu pertama/terakhir pun bisa berada di tengah */
-        .gal-track::before,
-        .gal-track::after {
+        /* Elemen pengisi: baris terakhir tidak ikut melebar memenuhi layar */
+        .gal-grid::after {
           content: '';
-          flex: 0 0 calc(50% - 140px);
+          flex-grow: 999999;
         }
-        .gal-card { flex-shrink: 0; }
+        .gal-tile {
+          position: relative;
+          flex-grow: var(--r);
+          flex-basis: calc(var(--r) * var(--row-h));
+          aspect-ratio: var(--r);
+          max-height: calc(var(--row-h) * 1.6);
+          overflow: hidden;
+          border: none;
+          padding: 0;
+          background: #EDEBE3;
+          cursor: pointer;
+        }
+        .gal-tile img,
+        .gal-tile__fill {
+          display: block;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: transform 0.5s ease, filter 0.3s ease;
+        }
+        .gal-tile:hover img,
+        .gal-tile:hover .gal-tile__fill {
+          transform: scale(1.04);
+          filter: brightness(0.75);
+        }
+        .gal-tile:focus-visible { outline: 2px solid #C8E06A; outline-offset: 3px; }
+        .gal-tile__caption {
+          position: absolute;
+          left: 14px;
+          right: 14px;
+          bottom: 12px;
+          color: #FAFAF7;
+          font-family: sans-serif;
+          font-size: 13.5px;
+          font-weight: 600;
+          text-align: left;
+          text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+          opacity: 0;
+          transform: translateY(6px);
+          transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .gal-tile:hover .gal-tile__caption,
+        .gal-tile:focus-visible .gal-tile__caption {
+          opacity: 1;
+          transform: none;
+        }
+        @media (hover: none) {
+          .gal-tile__caption { opacity: 1; transform: none; }
+        }
 
         /* ===== LIGHTBOX ===== */
         .gal-lb {
@@ -507,50 +532,6 @@ function Galeri() {
         .gal-lb__nav--next { right: 24px; }
         .gal-lb__close:hover,
         .gal-lb__nav:hover { background: rgba(200, 224, 106, 0.25); }
-
-        .gal-card {
-          position: relative;
-          width: 280px;
-          height: 400px;
-          min-width: 280px;
-          border-radius: 24px;
-          overflow: hidden;
-          box-shadow: 0 24px 48px rgba(0,0,0,0.45);
-          transition: transform 0.35s ease, z-index 0.35s ease;
-          border: none;
-          padding: 0;
-          cursor: pointer;
-        }
-        .gal-card:hover {
-          transform: scale(1.08) !important;
-          z-index: 200 !important;
-        }
-
-        .gal-card__photo {
-          position: absolute;
-          inset: 0;
-          background-size: cover;
-          background-position: center;
-        }
-        .gal-card__photo::after {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.75) 100%);
-        }
-        .gal-card__caption {
-          position: absolute;
-          left: 20px;
-          right: 20px;
-          bottom: 20px;
-          color: #FAEEDA;
-          font-family: Georgia, serif;
-          font-size: 17px;
-          line-height: 1.35;
-          margin: 0;
-          z-index: 1;
-          text-align: left;
-        }
 
         /* ===== SECTION TAMBAHAN (latar terang) ===== */
         .gal-more { background: #FBFAF6; }
@@ -740,8 +721,7 @@ function Galeri() {
         .faq-item.is-open .faq-item__body p { padding-bottom: 22px; }
 
         @media (max-width: 900px) {
-          .gal-card { width: 220px; height: 320px; min-width: 220px; }
-          .gal-track::before, .gal-track::after { flex-basis: calc(50% - 110px); }
+          .gal-grid { --row-h: 180px; gap: 10px; }
           .sec-articles { padding: 0 24px 64px; }
           .sec-articles__grid { grid-template-columns: 1fr; }
           .art-card { grid-template-columns: 1fr; }
@@ -756,8 +736,7 @@ function Galeri() {
         }
         @media (max-width: 600px) {
           .gal-hero { padding: calc(56px + 72px) 16px 64px; }
-          .gal-card { width: 180px; height: 260px; min-width: 180px; }
-          .gal-track::before, .gal-track::after { flex-basis: calc(50% - 90px); }
+          .gal-grid { --row-h: 100px; gap: 6px; }
           .gal-lb { padding: 16px; }
           .gal-lb__nav { width: 40px; height: 40px; top: auto; bottom: 24px; transform: none; }
           .gal-lb__nav--prev { left: 24px; }
