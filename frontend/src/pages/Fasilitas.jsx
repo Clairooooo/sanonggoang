@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import heroImg from '../assets/hero3.jpg';
 
 const dayaTarikStyle = [
   { gradient: 'linear-gradient(160deg, #042C53 0%, #185FA5 55%, #5DCAA5 100%)' },
@@ -82,15 +83,23 @@ function Fasilitas() {
   ];
 
   return (
-    <div style={{ fontFamily: 'Georgia, serif', minHeight: '80vh', background: '#FBFAF6' }}>
-      <section className="page-header">
-        <p className="eyebrow">Kenyamanan</p>
-        <h1>Fasilitas yang Tersedia</h1>
-        <p className="lead">
-          Kawasan Desa Wisata Danau Sano Nggoang dilengkapi berbagai fasilitas
-          penunjang untuk kenyamanan pengunjung selama berkunjung.
-        </p>
-      </section>
+    <div style={{ fontFamily: 'Georgia, serif', minHeight: '80vh', background: '#FBFAF6', marginTop: -72 }}>
+      {/* ===== HERO (gaya sama dengan halaman Daya Tarik) ===== */}
+      <header className="fac-hero" style={{ backgroundImage: `url(${heroImg})` }}>
+        <div className="fac-hero__overlay" />
+        <div className="fac-hero__content">
+          <p className="fac-hero__kicker">✦ Kenyamanan</p>
+          <h1>
+            Fasilitas yang
+            <br />
+            Tersedia
+          </h1>
+          <p className="fac-hero__lead">
+            Kawasan Desa Wisata Danau Sano Nggoang dilengkapi berbagai fasilitas
+            penunjang untuk kenyamanan pengunjung selama berkunjung.
+          </p>
+        </div>
+      </header>
 
       <section className="fac-list-wrap">
         {loading && <p className="muted">Memuat data...</p>}
@@ -225,17 +234,46 @@ function Fasilitas() {
       </section>
 
       <style>{`
-        .page-header {
-          background: #0B2313;
-          color: #FAEEDA;
-          padding: 72px 48px 56px;
-          text-align: center;
+        .fac-hero {
+          position: relative;
+          min-height: calc(70vh + 72px);
+          background-color: #0B2313;
+          background-size: cover;
+          background-position: center;
+          display: flex;
+          align-items: flex-end;
         }
-        .page-header .eyebrow { font-family: sans-serif; color: #C8E06A; font-size: 13px; margin: 0 0 12px; }
-        .page-header h1 { font-size: 34px; font-weight: normal; margin: 0 0 16px; }
-        .page-header .lead {
-          font-family: sans-serif; color: #C9DCC9; font-size: 15px; line-height: 1.7;
-          max-width: 540px; margin: 0 auto;
+        .fac-hero__overlay {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(180deg, rgba(11,35,19,0.35) 0%, rgba(11,35,19,0.9) 100%);
+        }
+        .fac-hero__content {
+          position: relative;
+          z-index: 1;
+          max-width: 640px;
+          padding: 48px 48px 64px;
+        }
+        .fac-hero__kicker {
+          font-family: sans-serif;
+          color: #C8E06A;
+          font-size: 13px;
+          margin: 0 0 14px;
+        }
+        .fac-hero h1 {
+          color: #FAEEDA;
+          font-weight: normal;
+          font-size: clamp(2rem, 5vw, 3.2rem);
+          line-height: 1.15;
+          margin: 0 0 18px;
+        }
+        .fac-hero__lead {
+          font-family: sans-serif;
+          color: #C9DCC9;
+          font-size: 14.5px;
+          line-height: 1.7;
+          max-width: 460px;
+          margin: 0;
         }
 
         .fac-list-wrap {
@@ -480,7 +518,7 @@ function Fasilitas() {
         }
 
         @media (max-width: 800px) {
-          .page-header { padding: 56px 24px 40px; }
+          .fac-hero__content { padding: 36px 24px 48px; }
           .fac-list-wrap { padding: 48px 20px 64px; }
           .fac-acc__head { padding: 18px 20px; }
           .fac-acc__content {
