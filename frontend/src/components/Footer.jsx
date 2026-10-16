@@ -86,7 +86,8 @@ function Footer() {
         <div className="site-footer__legal">
           <span>Kecamatan Sano Nggoang, Kabupaten Manggarai Barat, NTT</span>
           <span>© {new Date().getFullYear()} Danau Sano Nggoang — Seluruh hak cipta dilindungi</span>
-          <Link to="/login" className="site-footer__admin-btn">
+          {/* Halaman login admin dibuka di tab/jendela baru */}
+          <Link to="/login" target="_blank" rel="noopener noreferrer" className="site-footer__admin-btn">
             <span aria-hidden="true">🔒</span> Login Admin
           </Link>
         </div>
