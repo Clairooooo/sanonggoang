@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { authFetch, logout } from '../auth';
+import { authFetch, logout, setToken } from '../auth';
 
 const baseUrl = 'http://localhost:5000';
 const PAGE_SIZE = 6;
@@ -486,6 +486,188 @@ function PesanManager({ res, search }) {
   );
 }
 
+/* ===================== PENGATURAN AKUN ===================== */
+const PASSWORD_MIN = 8;
+
+// Pesan berhasil/gagal di bawah form pengaturan
+function Pesan({ data }) {
+  return data ? <p className={`set-msg set-msg--${data.tipe}`}>{data.teks}</p> : null;
+}
+
+function PengaturanAkun() {
+  const [akun, setAkun] = useState(null);
+  const [formUsername, setFormUsername] = useState({ usernameBaru: '', passwordLama: '' });
+  const [formPassword, setFormPassword] = useState({ passwordLama: '', passwordBaru: '', konfirmasi: '' });
+  const [pesan, setPesan] = useState({ username: null, password: null });
+  const [lihatPassword, setLihatPassword] = useState(false);
+
+  useEffect(() => {
+    authFetch(`${baseUrl}/api/admin/akun`)
+      .then((r) => r.json())
+      .then(setAkun)
+      .catch((err) => console.error('Gagal ambil data akun:', err));
+  }, []);
+
+  const tampilkan = (kunci, tipe, teks) => setPesan((p) => ({ ...p, [kunci]: { tipe, teks } }));
+
+  // Kirim perubahan ke server; server membalas token baru untuk sesi ini
+  const simpan = (body, kunci, teksBerhasil, reset) => {
+    setPesan((p) => ({ ...p, [kunci]: null }));
+    authFetch(`${baseUrl}/api/admin/akun`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+      .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) throw new Error(data.error || 'Gagal menyimpan pengaturan.');
+        setToken(data.token);
+        setAkun((a) => ({ ...a, username: data.username }));
+        reset();
+        tampilkan(kunci, 'ok', teksBerhasil);
+      })
+      .catch((err) => tampilkan(kunci, 'error', err.message));
+  };
+
+  const handleUsername = (e) => {
+    e.preventDefault();
+    const usernameBaru = formUsername.usernameBaru.trim();
+    if (!usernameBaru || !formUsername.passwordLama) {
+      tampilkan('username', 'error', 'Isi username baru dan password saat ini.');
+      return;
+    }
+    simpan(
+      { usernameBaru, passwordLama: formUsername.passwordLama },
+      'username',
+      'Username berhasil diubah. Gunakan username baru saat login berikutnya.',
+      () => setFormUsername({ usernameBaru: '', passwordLama: '' })
+    );
+  };
+
+  const handlePassword = (e) => {
+    e.preventDefault();
+    const { passwordLama, passwordBaru, konfirmasi } = formPassword;
+    if (!passwordLama || !passwordBaru || !konfirmasi) {
+      tampilkan('password', 'error', 'Lengkapi semua kolom password.');
+      return;
+    }
+    if (passwordBaru.length < PASSWORD_MIN) {
+      tampilkan('password', 'error', `Password baru minimal ${PASSWORD_MIN} karakter.`);
+      return;
+    }
+    if (passwordBaru !== konfirmasi) {
+      tampilkan('password', 'error', 'Konfirmasi password baru tidak sama.');
+      return;
+    }
+    if (passwordBaru === passwordLama) {
+      tampilkan('password', 'error', 'Password baru harus berbeda dari password saat ini.');
+      return;
+    }
+    simpan(
+      { passwordLama, passwordBaru },
+      'password',
+      'Password berhasil diubah. Perangkat lain yang masih login akan otomatis keluar.',
+      () => setFormPassword({ passwordLama: '', passwordBaru: '', konfirmasi: '' })
+    );
+  };
+
+  const tipeInput = lihatPassword ? 'text' : 'password';
+  const dibuat = akun?.created_at
+    ? new Date(akun.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+    : '-';
+
+  return (
+    <div className="set-grid">
+      {/* ===== INFO AKUN ===== */}
+      <section className="set-card set-card--info">
+        <span className="set-avatar">{(akun?.username || 'A').charAt(0).toUpperCase()}</span>
+        <div>
+          <h3>{akun?.username || 'Memuat...'}</h3>
+          <p>Administrator · akun dibuat {dibuat}</p>
+        </div>
+        <button type="button" className="btn-ghost set-logout" onClick={logout}>Keluar</button>
+      </section>
+
+      {/* ===== UBAH USERNAME ===== */}
+      <form className="set-card" onSubmit={handleUsername}>
+        <h3>Ubah username</h3>
+        <p className="set-desc">Username dipakai saat login ke halaman admin.</p>
+        <label>
+          Username baru
+          <input
+            type="text"
+            autoComplete="username"
+            placeholder={akun?.username || ''}
+            value={formUsername.usernameBaru}
+            onChange={(e) => setFormUsername({ ...formUsername, usernameBaru: e.target.value })}
+          />
+        </label>
+        <label>
+          Password saat ini
+          <input
+            type={tipeInput}
+            autoComplete="current-password"
+            value={formUsername.passwordLama}
+            onChange={(e) => setFormUsername({ ...formUsername, passwordLama: e.target.value })}
+          />
+        </label>
+        <Pesan data={pesan.username} />
+        <button type="submit" className="btn-primary">Simpan username</button>
+      </form>
+
+      {/* ===== UBAH PASSWORD ===== */}
+      <form className="set-card" onSubmit={handlePassword}>
+        <h3>Ubah password</h3>
+        <p className="set-desc">Minimal {PASSWORD_MIN} karakter. Gunakan kombinasi huruf, angka, dan simbol.</p>
+        <label>
+          Password saat ini
+          <input
+            type={tipeInput}
+            autoComplete="current-password"
+            value={formPassword.passwordLama}
+            onChange={(e) => setFormPassword({ ...formPassword, passwordLama: e.target.value })}
+          />
+        </label>
+        <label>
+          Password baru
+          <input
+            type={tipeInput}
+            autoComplete="new-password"
+            value={formPassword.passwordBaru}
+            onChange={(e) => setFormPassword({ ...formPassword, passwordBaru: e.target.value })}
+          />
+        </label>
+        <label>
+          Ulangi password baru
+          <input
+            type={tipeInput}
+            autoComplete="new-password"
+            value={formPassword.konfirmasi}
+            onChange={(e) => setFormPassword({ ...formPassword, konfirmasi: e.target.value })}
+          />
+        </label>
+        <label className="set-check">
+          <input type="checkbox" checked={lihatPassword} onChange={(e) => setLihatPassword(e.target.checked)} />
+          Tampilkan password
+        </label>
+        <Pesan data={pesan.password} />
+        <button type="submit" className="btn-primary">Simpan password</button>
+      </form>
+
+      {/* ===== KEAMANAN ===== */}
+      <section className="set-card set-card--tips">
+        <h3>Keamanan akun</h3>
+        <ul>
+          <li>Sesi login berlaku 8 jam, setelah itu admin perlu login ulang.</li>
+          <li>Login dikunci 15 menit setelah 5 kali salah memasukkan password.</li>
+          <li>Setelah password diganti, semua perangkat lain yang masih login otomatis keluar.</li>
+          <li>Password disimpan dalam bentuk terenkripsi (hash), sehingga tidak bisa dibaca dari database.</li>
+        </ul>
+      </section>
+    </div>
+  );
+}
+
 /* ===================== SHELL: SIDEBAR + TOPBAR ===================== */
 const navItems = [
   { key: 'dashboard', label: 'Dashboard', icon: '▦' },
@@ -493,6 +675,7 @@ const navItems = [
   { key: 'fasilitas', label: 'Fasilitas', icon: '✚' },
   { key: 'galeri', label: 'Galeri', icon: '▣' },
   { key: 'pesan', label: 'Pesan', icon: '✉' },
+  { key: 'pengaturan', label: 'Pengaturan', icon: '⚙' },
 ];
 
 function Admin() {
@@ -518,6 +701,7 @@ function Admin() {
     fasilitas: { title: 'Fasilitas', subtitle: `${counts.fasilitas} data ditemukan` },
     galeri: { title: 'Galeri', subtitle: `${counts.galeri} foto tersimpan` },
     pesan: { title: 'Pesan Masuk', subtitle: `${counts.pesan} pesan, ${unread} belum dibaca` },
+    pengaturan: { title: 'Pengaturan', subtitle: 'Kelola akun dan keamanan admin' },
   }[active];
 
   const goTo = (key) => {
@@ -566,6 +750,7 @@ function Admin() {
         {active === 'fasilitas' && <DataManager key="fasilitas" res={fasilitasRes} search={search} />}
         {active === 'galeri' && <GaleriManager res={galeriRes} search={search} />}
         {active === 'pesan' && <PesanManager res={pesanRes} search={search} />}
+        {active === 'pengaturan' && <PengaturanAkun />}
       </main>
 
       <style>{`
@@ -901,6 +1086,70 @@ function Admin() {
 
         .empty-note { text-align: center; color: #999; padding: 32px 0; }
 
+        /* ---------- PENGATURAN ---------- */
+        .set-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 20px;
+          align-items: start;
+        }
+        .set-card {
+          background: #fff;
+          border: 1px solid #E4E2D6;
+          border-radius: 16px;
+          padding: 24px;
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+        .set-card h3 { margin: 0; color: #04342C; font-size: 16px; }
+        .set-desc { margin: -6px 0 4px; color: #888; font-size: 12.5px; line-height: 1.5; }
+        .set-card label {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          font-size: 12.5px;
+          font-weight: 600;
+          color: #04342C;
+        }
+        .set-card input[type="text"],
+        .set-card input[type="password"] {
+          padding: 10px 12px;
+          border: 1px solid #DEDCCF;
+          border-radius: 10px;
+          font-size: 13.5px;
+          font-family: inherit;
+        }
+        .set-card input:focus { outline: 2px solid #C8E06A; border-color: #0F6E56; }
+        .set-card .btn-primary { align-self: flex-start; }
+        .set-check { flex-direction: row !important; align-items: center; font-weight: normal !important; color: #5F5E5A !important; }
+        .set-card--info {
+          grid-column: 1 / -1;
+          flex-direction: row;
+          align-items: center;
+          gap: 16px;
+        }
+        .set-card--info p { margin: 4px 0 0; color: #888; font-size: 12.5px; }
+        .set-avatar {
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          background: #0B2313;
+          color: #C8E06A;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 20px;
+          font-weight: 700;
+          flex-shrink: 0;
+        }
+        .set-logout { margin-left: auto; }
+        .set-card--tips { grid-column: 1 / -1; background: #F8F7F2; }
+        .set-card--tips ul { margin: 0; padding-left: 18px; color: #5F5E5A; font-size: 13px; line-height: 1.8; }
+        .set-msg { margin: 0; font-size: 12.5px; padding: 10px 12px; border-radius: 10px; }
+        .set-msg--ok { background: #E5F0CC; color: #27500A; }
+        .set-msg--error { background: #FBEDED; color: #A32D2D; }
+
         /* ---------- PAGINATION ---------- */
         .pagination {
           display: flex;
@@ -985,6 +1234,8 @@ function Admin() {
           .search-box input { width: 110px; }
           .profile__name { display: none; }
           .data-table { display: block; overflow-x: auto; }
+          .set-grid { grid-template-columns: 1fr; }
+          .set-card--info { flex-wrap: wrap; }
         }
       `}</style>
     </div>
