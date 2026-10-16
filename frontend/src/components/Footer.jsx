@@ -86,7 +86,9 @@ function Footer() {
         <div className="site-footer__legal">
           <span>Kecamatan Sano Nggoang, Kabupaten Manggarai Barat, NTT</span>
           <span>© {new Date().getFullYear()} Danau Sano Nggoang — Seluruh hak cipta dilindungi</span>
-          <Link to="/login" className="site-footer__admin-link">Login Admin</Link>
+          <Link to="/login" className="site-footer__admin-btn">
+            <span aria-hidden="true">🔒</span> Login Admin
+          </Link>
         </div>
       </div>
 
@@ -223,6 +225,7 @@ function Footer() {
         .site-footer__legal {
           display: flex;
           justify-content: space-between;
+          align-items: center;
           flex-wrap: wrap;
           gap: 8px;
           padding-top: 20px;
@@ -230,11 +233,20 @@ function Footer() {
           color: #7A9B7A;
           font-size: 11.5px;
         }
-        .site-footer__admin-link {
-          color: #7A9B7A;
-          text-decoration: underline;
+        .site-footer__admin-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 16px;
+          border: 1px solid rgba(200, 224, 106, 0.6);
+          border-radius: 999px;
+          color: #C8E06A;
+          font-size: 12px;
+          font-weight: 600;
+          text-decoration: none;
+          transition: background 0.25s ease, color 0.25s ease;
         }
-        .site-footer__admin-link:hover { color: #C8E06A; }
+        .site-footer__admin-btn:hover { background: #C8E06A; color: #0B2313; }
 
         @media (max-width: 800px) {
           .site-footer { padding: 56px 24px 24px; }
