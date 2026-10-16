@@ -24,7 +24,8 @@ function RequireAuth({ children }) {
 function Layout() {
   const location = useLocation();
   const isBeranda = location.pathname === '/';
-  const isAdmin = location.pathname.startsWith('/admin');
+  // Halaman admin dan login tampil sendiri, tanpa navbar dan footer website
+  const isAdmin = location.pathname.startsWith('/admin') || location.pathname === '/login';
 
   return (
     <>
@@ -52,7 +53,7 @@ function Layout() {
         </Routes>
       </div>
 
-      {/* Footer tidak tampil di Beranda (hero full-screen) dan Admin */}
+      {/* Footer tidak tampil di Beranda (hero full-screen), Login, dan Admin */}
       {!isAdmin && !isBeranda && <Footer />}
     </>
   );
