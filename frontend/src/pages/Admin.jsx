@@ -82,7 +82,7 @@ function Topbar({ title, subtitle, search, onSearch, unread, onOpenPesan, onLogo
           </button>
           {menuOpen && (
             <div className="profile__menu">
-              <button onClick={onLogout}>Keluar</button>
+              <button onClick={() => { setMenuOpen(false); onLogout(); }}>Keluar</button>
             </div>
           )}
         </div>
@@ -494,7 +494,7 @@ function Pesan({ data }) {
   return data ? <p className={`set-msg set-msg--${data.tipe}`}>{data.teks}</p> : null;
 }
 
-function PengaturanAkun() {
+function PengaturanAkun({ onLogout }) {
   const [akun, setAkun] = useState(null);
   const [formUsername, setFormUsername] = useState({ usernameBaru: '', passwordLama: '' });
   const [formPassword, setFormPassword] = useState({ passwordLama: '', passwordBaru: '', konfirmasi: '' });
@@ -585,7 +585,7 @@ function PengaturanAkun() {
           <h3>{akun?.username || 'Memuat...'}</h3>
           <p>Administrator · akun dibuat {dibuat}</p>
         </div>
-        <button type="button" className="btn-ghost set-logout" onClick={logout}>Keluar</button>
+        <button type="button" className="btn-ghost set-logout" onClick={onLogout}>Keluar</button>
       </section>
 
       {/* ===== UBAH USERNAME ===== */}
@@ -709,7 +709,19 @@ function Admin() {
     setSearch('');
   };
 
-  const handleLogout = logout;
+  // Tombol Keluar tidak langsung logout, tetapi membuka dialog konfirmasi dulu
+  const [konfirmasiKeluar, setKonfirmasiKeluar] = useState(false);
+  const handleLogout = () => setKonfirmasiKeluar(true);
+
+  // Tutup dialog dengan tombol Esc
+  useEffect(() => {
+    if (!konfirmasiKeluar) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setKonfirmasiKeluar(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [konfirmasiKeluar]);
 
   return (
     <div className="admin-shell">
@@ -750,8 +762,33 @@ function Admin() {
         {active === 'fasilitas' && <DataManager key="fasilitas" res={fasilitasRes} search={search} />}
         {active === 'galeri' && <GaleriManager res={galeriRes} search={search} />}
         {active === 'pesan' && <PesanManager res={pesanRes} search={search} />}
-        {active === 'pengaturan' && <PengaturanAkun />}
+        {active === 'pengaturan' && <PengaturanAkun onLogout={handleLogout} />}
       </main>
+
+      {/* ===== DIALOG KONFIRMASI KELUAR ===== */}
+      {konfirmasiKeluar && (
+        <div className="confirm-overlay" onClick={() => setKonfirmasiKeluar(false)}>
+          <div
+            className="confirm-box"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="judul-keluar"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="confirm-box__icon" aria-hidden="true">⎋</span>
+            <h3 id="judul-keluar">Keluar dari halaman admin?</h3>
+            <p>Anda perlu login kembali untuk mengelola data website.</p>
+            <div className="confirm-box__actions">
+              <button type="button" className="btn-ghost" onClick={() => setKonfirmasiKeluar(false)} autoFocus>
+                Batal
+              </button>
+              <button type="button" className="btn-danger" onClick={() => logout('keluar')}>
+                Ya, keluar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         * { box-sizing: border-box; }
@@ -1149,6 +1186,55 @@ function Admin() {
         .set-msg { margin: 0; font-size: 12.5px; padding: 10px 12px; border-radius: 10px; }
         .set-msg--ok { background: #E5F0CC; color: #27500A; }
         .set-msg--error { background: #FBEDED; color: #A32D2D; }
+
+        /* ---------- DIALOG KONFIRMASI KELUAR ---------- */
+        .confirm-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 1000;
+          background: rgba(5, 20, 10, 0.55);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          animation: confirmIn 0.15s ease;
+        }
+        @keyframes confirmIn { from { opacity: 0; } to { opacity: 1; } }
+        .confirm-box {
+          background: #fff;
+          border-radius: 18px;
+          padding: 28px;
+          width: 100%;
+          max-width: 380px;
+          text-align: center;
+          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+        }
+        .confirm-box__icon {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 52px;
+          height: 52px;
+          border-radius: 50%;
+          background: #FBEDED;
+          color: #A32D2D;
+          font-size: 22px;
+          margin-bottom: 14px;
+        }
+        .confirm-box h3 { margin: 0 0 8px; color: #04342C; font-size: 17px; }
+        .confirm-box p { margin: 0 0 22px; color: #5F5E5A; font-size: 13px; line-height: 1.6; }
+        .confirm-box__actions { display: flex; gap: 10px; justify-content: center; }
+        .btn-danger {
+          background: #A32D2D;
+          color: #fff;
+          border: none;
+          padding: 10px 20px;
+          border-radius: 999px;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .btn-danger:hover { background: #8A2424; }
 
         /* ---------- PAGINATION ---------- */
         .pagination {
