@@ -1,8 +1,21 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { setToken } from '../auth';
 
+// Pesan yang ditampilkan sesuai alasan logout (dikirim lewat alamat oleh fungsi logout)
+function pesanLogout(params) {
+  if (params.get('sesi') === 'habis') {
+    return { tipe: 'peringatan', teks: 'Sesi login Anda telah berakhir. Silakan login kembali.' };
+  }
+  if (params.get('keluar')) {
+    return { tipe: 'berhasil', teks: 'Anda berhasil keluar dari halaman admin.' };
+  }
+  return null;
+}
+
 function Login() {
+  const [searchParams] = useSearchParams();
+  const info = pesanLogout(searchParams);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -39,6 +52,12 @@ function Login() {
         <p className="login-desc">
           Masuk untuk mengelola data Daya Tarik, Fasilitas, Galeri, dan pesan masuk.
         </p>
+
+        {info && !error && (
+          <p className={`login-info login-info--${info.tipe}`} role="status">
+            {info.teks}
+          </p>
+        )}
 
         <form onSubmit={handleSubmit} className="login-form">
           <label>
@@ -127,6 +146,17 @@ function Login() {
           outline: none;
         }
         .login-form input:focus { border-color: #0F6E56; }
+
+        .login-info {
+          font-family: sans-serif;
+          font-size: 12.5px;
+          line-height: 1.5;
+          padding: 10px 14px;
+          border-radius: 10px;
+          margin: -12px 0 22px;
+        }
+        .login-info--berhasil { background: #E5F0CC; color: #27500A; }
+        .login-info--peringatan { background: #FAEEDA; color: #633806; }
 
         .login-error {
           font-family: sans-serif;
