@@ -1,10 +1,19 @@
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import heroImg from '../assets/hero.jpg';
+import PetaLokasi from '../components/PetaLokasi';
+import { formatJarak, jarakKm, keTitik, tautanRute } from '../geo';
 
-// Nama tempat dipakai untuk peta dan tombol petunjuk arah Google Maps
+// Tombol petunjuk arah umum (tanpa titik tertentu) ke kawasan danau
 const MAP_QUERY = 'Danau Sano Nggoang, Manggarai Barat';
-const mapEmbedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(MAP_QUERY)}&z=12&output=embed`;
 const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(MAP_QUERY)}`;
+
+// Pesan untuk setiap kemungkinan kegagalan geolokasi browser
+const PESAN_GEO = {
+  1: 'Izin lokasi ditolak. Aktifkan izin lokasi untuk website ini di pengaturan browser, lalu coba lagi.',
+  2: 'Posisi Anda tidak dapat ditentukan. Pastikan GPS atau layanan lokasi perangkat aktif.',
+  3: 'Waktu mencari posisi habis. Coba lagi di tempat dengan sinyal yang lebih baik.',
+};
 
 // Angka perkiraan; kondisi jalan bisa berubah, terutama saat musim hujan
 const infoSingkat = [
@@ -48,6 +57,55 @@ const tips = [
 ];
 
 function Lokasi() {
+  const [titik, setTitik] = useState([]);
+  const [memuat, setMemuat] = useState(true);
+  const [gagalMuat, setGagalMuat] = useState(false);
+  const [posisi, setPosisi] = useState(null);
+  const [statusGeo, setStatusGeo] = useState({ tipe: 'awal', teks: '' });
+
+  // Ambil titik koordinat objek wisata dari database
+  useEffect(() => {
+    fetch('http://localhost:5000/api/lokasi')
+      .then((res) => {
+        if (!res.ok) throw new Error(`Status ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        setTitik(Array.isArray(data) ? data.map(keTitik) : []);
+        setMemuat(false);
+      })
+      .catch((err) => {
+        console.error('Gagal ambil data lokasi:', err);
+        setGagalMuat(true);
+        setMemuat(false);
+      });
+  }, []);
+
+  // Minta posisi pengguna lewat Geolocation API browser
+  const cariPosisi = () => {
+    if (!('geolocation' in navigator)) {
+      setStatusGeo({ tipe: 'error', teks: 'Browser ini tidak mendukung fitur lokasi.' });
+      return;
+    }
+    setStatusGeo({ tipe: 'mencari', teks: 'Mencari posisi Anda...' });
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setPosisi({ lat: pos.coords.latitude, lng: pos.coords.longitude, akurasi: pos.coords.accuracy });
+        setStatusGeo({ tipe: 'ok', teks: `Posisi ditemukan (akurasi ± ${Math.round(pos.coords.accuracy)} m).` });
+      },
+      (err) => setStatusGeo({ tipe: 'error', teks: PESAN_GEO[err.code] || 'Posisi Anda tidak dapat ditentukan.' }),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+    );
+  };
+
+  // Tambahkan jarak dari posisi pengguna, lalu urutkan dari yang terdekat
+  const titikBerjarak = useMemo(() => {
+    if (!posisi) return titik;
+    return titik
+      .map((t) => ({ ...t, jarak: jarakKm(posisi, t) }))
+      .sort((a, b) => a.jarak - b.jarak);
+  }, [titik, posisi]);
+
   return (
     <div className="lok" style={{ fontFamily: 'Georgia, serif', marginTop: -72, background: '#FBFAF6' }}>
       {/* ===== HERO (gaya sama dengan Daya Tarik & Fasilitas) ===== */}
@@ -70,13 +128,7 @@ function Lokasi() {
       {/* ===== PETA + INFO SINGKAT ===== */}
       <section className="lok-map">
         <div className="lok-map__frame">
-          <iframe
-            title="Peta lokasi Danau Sano Nggoang"
-            src={mapEmbedUrl}
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-            allowFullScreen
-          />
+          <PetaLokasi titik={titikBerjarak} posisi={posisi} />
         </div>
 
         <aside className="lok-card">
@@ -99,6 +151,59 @@ function Lokasi() {
             Petunjuk Arah di Google Maps
           </a>
         </aside>
+      </section>
+
+      {/* ===== GEOLOKASI: OBJEK WISATA TERDEKAT ===== */}
+      <section className="lok-dekat">
+        <div className="lok-dekat__head">
+          <div>
+            <p className="eyebrow">Geolokasi</p>
+            <h2>Objek wisata di sekitar Anda</h2>
+            <p className="lok-dekat__lead">
+              Izinkan website membaca lokasi perangkat untuk melihat jarak dari posisi Anda ke setiap objek wisata.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="lok-btn lok-btn--lime"
+            onClick={cariPosisi}
+            disabled={statusGeo.tipe === 'mencari'}
+          >
+            {posisi ? 'Perbarui lokasi saya' : 'Gunakan lokasi saya'}
+          </button>
+        </div>
+
+        {statusGeo.teks && (
+          <p className={`lok-geo-status lok-geo-status--${statusGeo.tipe}`} role="status">{statusGeo.teks}</p>
+        )}
+
+        {memuat && <p className="lok-muted">Memuat titik lokasi...</p>}
+        {gagalMuat && <p className="lok-muted">Data lokasi gagal dimuat. Silakan coba lagi nanti.</p>}
+        {!memuat && !gagalMuat && titik.length === 0 && (
+          <p className="lok-muted">Belum ada titik lokasi objek wisata yang ditambahkan oleh pengelola.</p>
+        )}
+
+        {titikBerjarak.length > 0 && (
+          <ol className="lok-dekat__list">
+            {titikBerjarak.map((t) => (
+              <li key={t.id} className="lok-dekat__item">
+                <div>
+                  <h3>{t.nama}</h3>
+                  {t.deskripsi && <p>{t.deskripsi}</p>}
+                </div>
+                <div className="lok-dekat__aksi">
+                  {typeof t.jarak === 'number' && <strong>{formatJarak(t.jarak)}</strong>}
+                  <a href={tautanRute(t, posisi)} target="_blank" rel="noopener noreferrer">Lihat rute</a>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+        {posisi && titik.length > 0 && (
+          <p className="lok-muted lok-muted--kecil">
+            Jarak dihitung dalam garis lurus. Jarak tempuh di jalan biasanya lebih jauh.
+          </p>
+        )}
       </section>
 
       {/* ===== RUTE ===== */}
@@ -231,7 +336,44 @@ function Lokasi() {
           border: 1px solid #E2E0D5;
           background: #EDEBE3;
         }
-        .lok-map__frame iframe { display: block; width: 100%; height: 100%; min-height: 420px; border: 0; }
+        /* z-index 0 membuat lapisan peta Leaflet tidak menutupi navbar saat halaman digulir */
+        .lok-map__frame { position: relative; z-index: 0; }
+
+        /* GEOLOKASI */
+        .lok-dekat { max-width: 1200px; margin: 0 auto; padding: 0 48px 64px; }
+        .lok-dekat__head {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-end;
+          gap: 24px;
+          flex-wrap: wrap;
+          margin-bottom: 20px;
+        }
+        .lok-dekat__lead { font-family: sans-serif; color: #5F5E5A; font-size: 13.5px; line-height: 1.7; margin: 8px 0 0; max-width: 560px; }
+        .lok-dekat .lok-btn { border: none; cursor: pointer; }
+        .lok-dekat .lok-btn:disabled { opacity: 0.6; cursor: wait; }
+        .lok-geo-status { font-family: sans-serif; font-size: 13px; padding: 10px 14px; border-radius: 10px; margin: 0 0 16px; }
+        .lok-geo-status--mencari { background: #EDEBE3; color: #444441; }
+        .lok-geo-status--ok { background: #E5F0CC; color: #27500A; }
+        .lok-geo-status--error { background: #FBEDED; color: #A32D2D; }
+        .lok-muted { font-family: sans-serif; color: #888; font-size: 13.5px; }
+        .lok-muted--kecil { font-size: 12px; margin-top: 12px; }
+        .lok-dekat__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+        .lok-dekat__item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 16px;
+          background: #fff;
+          border: 1px solid #E2E0D5;
+          border-radius: 14px;
+          padding: 16px 20px;
+        }
+        .lok-dekat__item h3 { margin: 0; color: #04342C; font-size: 17px; font-weight: normal; }
+        .lok-dekat__item p { margin: 4px 0 0; font-family: sans-serif; color: #5F5E5A; font-size: 13px; line-height: 1.6; }
+        .lok-dekat__aksi { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; font-family: sans-serif; }
+        .lok-dekat__aksi strong { color: #0F6E56; font-size: 16px; }
+        .lok-dekat__aksi a { color: #04342C; font-size: 12.5px; font-weight: 600; }
         .lok-card {
           background: #fff;
           border: 1px solid #E2E0D5;
@@ -311,7 +453,10 @@ function Lokasi() {
         @media (max-width: 800px) {
           .lok-hero__content { padding: 36px 24px 48px; }
           .lok-map { grid-template-columns: 1fr; padding: 56px 24px 40px; }
-          .lok-map__frame, .lok-map__frame iframe { min-height: 320px; }
+          .lok-map__frame { min-height: 0; }
+          .lok-dekat { padding: 0 24px 48px; }
+          .lok-dekat__item { flex-direction: column; align-items: flex-start; }
+          .lok-dekat__aksi { flex-direction: row; align-items: center; gap: 14px; }
           .lok-card { padding: 24px 20px; }
           .lok-rute { padding: 16px 24px 64px; }
           .lok-tips__inner { padding: 64px 24px; }
