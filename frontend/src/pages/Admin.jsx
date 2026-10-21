@@ -160,10 +160,11 @@ function DashboardHome({ counts }) {
   );
 }
 
-/* ===================== DATA MANAGER (Daya Tarik / Fasilitas) ===================== */
-const initialForm = { nama: '', deskripsi: '' };
+/* ===================== DATA MANAGER (Daya Tarik / Fasilitas / Festival) ===================== */
+const initialForm = { nama: '', deskripsi: '', jadwal: '' };
 
-function DataManager({ res, search }) {
+// denganJadwal: tampilkan kolom Jadwal (dipakai untuk data festival)
+function DataManager({ res, search, denganJadwal = false }) {
   const { items, loading, loadData, url } = res;
   const [form, setForm] = useState(initialForm);
   const [file, setFile] = useState(null);
@@ -193,6 +194,7 @@ function DataManager({ res, search }) {
     const formData = new FormData();
     formData.append('nama', form.nama);
     formData.append('deskripsi', form.deskripsi);
+    if (denganJadwal) formData.append('jadwal', form.jadwal);
     if (file) formData.append('gambar', file);
     if (editingId && editingGambarLama) formData.append('gambarLama', editingGambarLama);
 
@@ -206,7 +208,7 @@ function DataManager({ res, search }) {
   };
 
   const handleEdit = (item) => {
-    setForm({ nama: item.nama, deskripsi: item.deskripsi || '' });
+    setForm({ nama: item.nama, deskripsi: item.deskripsi || '', jadwal: item.jadwal || '' });
     setEditingId(item.id);
     setEditingGambarLama(item.gambar || null);
     setFile(null);
@@ -257,6 +259,14 @@ function DataManager({ res, search }) {
               value={form.nama}
               onChange={(e) => setForm({ ...form, nama: e.target.value })}
             />
+            {denganJadwal && (
+              <input
+                type="text"
+                placeholder="Jadwal, misalnya: saat upacara Penti (Oktober–November)"
+                value={form.jadwal}
+                onChange={(e) => setForm({ ...form, jadwal: e.target.value })}
+              />
+            )}
             <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files[0])} />
           </div>
           <textarea
@@ -279,16 +289,17 @@ function DataManager({ res, search }) {
           <tr>
             <th>Foto</th>
             <th>Nama</th>
+            {denganJadwal && <th>Jadwal</th>}
             <th>Deskripsi</th>
             <th>Aksi</th>
           </tr>
         </thead>
         <tbody>
           {loading && (
-            <tr className="row-empty"><td colSpan={4}>Memuat data...</td></tr>
+            <tr className="row-empty"><td colSpan={denganJadwal ? 5 : 4}>Memuat data...</td></tr>
           )}
           {!loading && filtered.length === 0 && (
-            <tr className="row-empty"><td colSpan={4}>Belum ada data.</td></tr>
+            <tr className="row-empty"><td colSpan={denganJadwal ? 5 : 4}>Belum ada data.</td></tr>
           )}
           {pageItems.map((item) => (
             <tr key={item.id}>
@@ -300,6 +311,7 @@ function DataManager({ res, search }) {
                 )}
               </td>
               <td className="cell-strong">{item.nama}</td>
+              {denganJadwal && <td className="cell-muted">{item.jadwal}</td>}
               <td className="cell-muted cell-wrap">{item.deskripsi}</td>
               <td>
                 <div className="row-actions">
@@ -485,6 +497,135 @@ function PesanManager({ res, search }) {
 
       <Pagination page={currentPage} pageSize={PAGE_SIZE} total={filtered.length} onChange={setPage} />
     </div>
+  );
+}
+
+/* ===================== PROFIL & KONTAK (data satu baris) ===================== */
+// Ambil baris pertama dari endpoint publik, lalu isi form
+function useSatuBaris(endpoint, kosong) {
+  const [data, setData] = useState(kosong);
+  const [siap, setSiap] = useState(false);
+  useEffect(() => {
+    fetch(`${baseUrl}/api/${endpoint}`)
+      .then((r) => r.json())
+      .then((rows) => {
+        const baris = Array.isArray(rows) && rows[0] ? rows[0] : {};
+        setData(Object.fromEntries(Object.keys(kosong).map((k) => [k, baris[k] ?? ''])));
+        setSiap(true);
+      })
+      .catch((err) => {
+        console.error(`Gagal ambil data ${endpoint}:`, err);
+        setSiap(true);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [endpoint]);
+  return [data, setData, siap];
+}
+
+// Kirim ke server lalu tampilkan pesan berhasil/gagal di bawah form
+function kirimForm(url, options, setPesan, teksBerhasil) {
+  setPesan(null);
+  return authFetch(url, options)
+    .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      if (!ok) throw new Error(data.error || 'Gagal menyimpan data.');
+      setPesan({ tipe: 'ok', teks: teksBerhasil });
+      return true;
+    })
+    .catch((err) => {
+      setPesan({ tipe: 'error', teks: err.message });
+      return false;
+    });
+}
+
+function ProfilManager() {
+  const [form, setForm, siap] = useSatuBaris('profil', { judul: '', isi: '', sejarah: '', gambar: '' });
+  const [file, setFile] = useState(null);
+  const [pesan, setPesan] = useState(null);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!form.judul.trim() || !form.isi.trim()) {
+      setPesan({ tipe: 'error', teks: 'Judul dan isi profil wajib diisi.' });
+      return;
+    }
+    const fd = new FormData();
+    fd.append('judul', form.judul);
+    fd.append('isi', form.isi);
+    fd.append('sejarah', form.sejarah);
+    if (file) fd.append('gambar', file);
+    else if (form.gambar) fd.append('gambarLama', form.gambar);
+    kirimForm(`${baseUrl}/api/profil`, { method: 'PUT', body: fd }, setPesan, 'Profil berhasil disimpan.');
+  };
+
+  if (!siap) return <p className="empty-note">Memuat data...</p>;
+
+  return (
+    <form className="set-card set-card--lebar" onSubmit={handleSubmit}>
+      <h3>Profil kawasan</h3>
+      <p className="set-desc">Ditampilkan di halaman Profil website.</p>
+      <label>
+        Judul
+        <input type="text" value={form.judul} onChange={(e) => setForm({ ...form, judul: e.target.value })} placeholder="Danau Sano Nggoang" />
+      </label>
+      <label>
+        Isi profil (paragraf pembuka)
+        <textarea rows={4} value={form.isi} onChange={(e) => setForm({ ...form, isi: e.target.value })} />
+      </label>
+      <label>
+        Sejarah
+        <textarea rows={5} value={form.sejarah} onChange={(e) => setForm({ ...form, sejarah: e.target.value })} />
+      </label>
+      <label>
+        Gambar profil
+        <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files[0])} />
+      </label>
+      {form.gambar && !file && <img src={`${baseUrl}${form.gambar}`} alt="Gambar profil saat ini" className="set-preview" />}
+      <Pesan data={pesan} />
+      <button type="submit" className="btn-primary">Simpan profil</button>
+    </form>
+  );
+}
+
+function KontakManager() {
+  const [form, setForm, siap] = useSatuBaris('kontak', { nama_instansi: '', telepon: '', email: '', alamat: '' });
+  const [pesan, setPesan] = useState(null);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    kirimForm(
+      `${baseUrl}/api/kontak`,
+      { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) },
+      setPesan,
+      'Kontak berhasil disimpan. Perubahan tampil di halaman Kontak dan footer website.'
+    );
+  };
+
+  if (!siap) return <p className="empty-note">Memuat data...</p>;
+
+  return (
+    <form className="set-card set-card--lebar" onSubmit={handleSubmit}>
+      <h3>Kontak pengelola</h3>
+      <p className="set-desc">Ditampilkan di halaman Kontak dan di footer website.</p>
+      <label>
+        Nama instansi / pengelola
+        <input type="text" value={form.nama_instansi} onChange={(e) => setForm({ ...form, nama_instansi: e.target.value })} />
+      </label>
+      <label>
+        Nomor telepon / WhatsApp
+        <input type="text" value={form.telepon} onChange={(e) => setForm({ ...form, telepon: e.target.value })} placeholder="+62 ..." />
+      </label>
+      <label>
+        Email
+        <input type="text" inputMode="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+      </label>
+      <label>
+        Alamat
+        <textarea rows={3} value={form.alamat} onChange={(e) => setForm({ ...form, alamat: e.target.value })} />
+      </label>
+      <Pesan data={pesan} />
+      <button type="submit" className="btn-primary">Simpan kontak</button>
+    </form>
   );
 }
 
@@ -827,7 +968,10 @@ const navItems = [
   { key: 'fasilitas', label: 'Fasilitas', icon: '✚' },
   { key: 'galeri', label: 'Galeri', icon: '▣' },
   { key: 'pesan', label: 'Pesan', icon: '✉' },
+  { key: 'festival', label: 'Festival', icon: '✦' },
   { key: 'lokasi', label: 'Lokasi', icon: '⌖' },
+  { key: 'profil', label: 'Profil', icon: '☰' },
+  { key: 'kontak', label: 'Kontak', icon: '☏' },
   { key: 'pengaturan', label: 'Pengaturan', icon: '⚙' },
 ];
 
@@ -840,6 +984,7 @@ function Admin() {
   const galeriRes = useResource('galeri');
   const pesanRes = useResource('pesan');
   const lokasiRes = useResource('lokasi');
+  const festivalRes = useResource('festival');
 
   const counts = {
     dayaTarik: dayaTarikRes.items.length,
@@ -855,6 +1000,9 @@ function Admin() {
     fasilitas: { title: 'Fasilitas', subtitle: `${counts.fasilitas} data ditemukan` },
     galeri: { title: 'Galeri', subtitle: `${counts.galeri} foto tersimpan` },
     pesan: { title: 'Pesan Masuk', subtitle: `${counts.pesan} pesan, ${unread} belum dibaca` },
+    festival: { title: 'Festival', subtitle: `${festivalRes.items.length} data festival` },
+    profil: { title: 'Profil', subtitle: 'Profil kawasan yang tampil di halaman Profil' },
+    kontak: { title: 'Kontak', subtitle: 'Kontak pengelola untuk halaman Kontak dan footer' },
     lokasi: { title: 'Lokasi', subtitle: `${lokasiRes.items.length} titik lokasi objek wisata` },
     pengaturan: { title: 'Pengaturan', subtitle: 'Kelola akun dan keamanan admin' },
   }[active];
@@ -917,6 +1065,9 @@ function Admin() {
         {active === 'fasilitas' && <DataManager key="fasilitas" res={fasilitasRes} search={search} />}
         {active === 'galeri' && <GaleriManager res={galeriRes} search={search} />}
         {active === 'pesan' && <PesanManager res={pesanRes} search={search} />}
+        {active === 'festival' && <DataManager key="festival" res={festivalRes} search={search} denganJadwal />}
+        {active === 'profil' && <ProfilManager />}
+        {active === 'kontak' && <KontakManager />}
         {active === 'lokasi' && <LokasiManager res={lokasiRes} search={search} />}
         {active === 'pengaturan' && <PengaturanAkun onLogout={handleLogout} />}
       </main>
@@ -1318,6 +1469,10 @@ function Admin() {
         .set-card input:focus { outline: 2px solid #C8E06A; border-color: #0F6E56; }
         .set-card .btn-primary { align-self: flex-start; }
         .set-check { flex-direction: row !important; align-items: center; font-weight: normal !important; color: #5F5E5A !important; }
+        .set-card--lebar { max-width: 720px; }
+        .set-card textarea { padding: 10px 12px; border: 1px solid #DEDCCF; border-radius: 10px; font-size: 13.5px; font-family: inherit; resize: vertical; font-weight: normal; }
+        .set-card input[type="file"] { font-size: 12.5px; font-weight: normal; }
+        .set-preview { width: 160px; height: 100px; object-fit: cover; border-radius: 10px; border: 1px solid #E4E2D6; }
         .set-card--info {
           grid-column: 1 / -1;
           flex-direction: row;
