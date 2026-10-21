@@ -257,6 +257,64 @@ app.get('/api/galeri', (req, res) => {
   });
 });
 
+// ===== LOKASI: titik koordinat objek wisata untuk peta (geolokasi) =====
+// Memeriksa input lokasi; mengembalikan pesan kesalahan atau null jika valid
+function periksaLokasi(body) {
+  const { nama, latitude, longitude } = body || {};
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if (!nama || !String(nama).trim()) return 'Nama lokasi wajib diisi';
+  if (latitude === '' || latitude === undefined || Number.isNaN(lat) || lat < -90 || lat > 90) {
+    return 'Latitude harus berupa angka antara -90 dan 90';
+  }
+  if (longitude === '' || longitude === undefined || Number.isNaN(lng) || lng < -180 || lng > 180) {
+    return 'Longitude harus berupa angka antara -180 dan 180';
+  }
+  return null;
+}
+
+app.get('/api/lokasi', (req, res) => {
+  db.query('SELECT id, nama, latitude, longitude, deskripsi FROM lokasi ORDER BY nama', (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
+  });
+});
+
+app.post('/api/lokasi', wajibAdmin, (req, res) => {
+  const salah = periksaLokasi(req.body);
+  if (salah) return res.status(400).json({ error: salah });
+  const { nama, latitude, longitude, deskripsi } = req.body;
+  db.query(
+    'INSERT INTO lokasi (nama, latitude, longitude, deskripsi) VALUES (?, ?, ?, ?)',
+    [String(nama).trim(), Number(latitude), Number(longitude), deskripsi || null],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: result.insertId });
+    }
+  );
+});
+
+app.put('/api/lokasi/:id', wajibAdmin, (req, res) => {
+  const salah = periksaLokasi(req.body);
+  if (salah) return res.status(400).json({ error: salah });
+  const { nama, latitude, longitude, deskripsi } = req.body;
+  db.query(
+    'UPDATE lokasi SET nama = ?, latitude = ?, longitude = ?, deskripsi = ? WHERE id = ?',
+    [String(nama).trim(), Number(latitude), Number(longitude), deskripsi || null, req.params.id],
+    (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ message: 'Berhasil diperbarui' });
+    }
+  );
+});
+
+app.delete('/api/lokasi/:id', wajibAdmin, (req, res) => {
+  db.query('DELETE FROM lokasi WHERE id = ?', [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: 'Berhasil dihapus' });
+  });
+});
+
 // GET data kontak
 app.get('/api/kontak', (req, res) => {
   db.query('SELECT * FROM kontak', (err, results) => {

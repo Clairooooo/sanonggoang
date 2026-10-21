@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { authFetch, logout, setToken } from '../auth';
+import PetaLokasi from '../components/PetaLokasi';
+import { keTitik } from '../geo';
 
 const baseUrl = 'http://localhost:5000';
 const PAGE_SIZE = 6;
@@ -486,6 +488,156 @@ function PesanManager({ res, search }) {
   );
 }
 
+/* ===================== LOKASI MANAGER (titik geolokasi objek wisata) ===================== */
+const formLokasiAwal = { nama: '', latitude: '', longitude: '', deskripsi: '' };
+
+function LokasiManager({ res, search }) {
+  const { items, loading, loadData, url } = res;
+  const [form, setForm] = useState(formLokasiAwal);
+  const [editingId, setEditingId] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [pesan, setPesan] = useState('');
+  const [page, setPage] = useState(1);
+
+  const titik = useMemo(() => items.map(keTitik), [items]);
+  const lat = parseFloat(form.latitude);
+  const lng = parseFloat(form.longitude);
+  const pilihan = Number.isNaN(lat) || Number.isNaN(lng) ? null : { lat, lng };
+
+  const resetForm = () => {
+    setForm(formLokasiAwal);
+    setEditingId(null);
+    setShowForm(false);
+    setPesan('');
+  };
+
+  // Klik pada peta mengisi kolom latitude dan longitude
+  const pilihDariPeta = (la, ln) => setForm((f) => ({ ...f, latitude: String(la), longitude: String(ln) }));
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setPesan('');
+    authFetch(editingId ? `${url}/${editingId}` : url, {
+      method: editingId ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    })
+      .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) throw new Error(data.error || 'Gagal menyimpan lokasi.');
+        resetForm();
+        loadData();
+      })
+      .catch((err) => setPesan(err.message));
+  };
+
+  const handleEdit = (item) => {
+    setForm({
+      nama: item.nama,
+      latitude: String(Number(item.latitude)),
+      longitude: String(Number(item.longitude)),
+      deskripsi: item.deskripsi || '',
+    });
+    setEditingId(item.id);
+    setShowForm(true);
+    setPesan('');
+  };
+
+  const handleDelete = (id) => {
+    if (!window.confirm('Yakin ingin menghapus titik lokasi ini?')) return;
+    authFetch(`${url}/${id}`, { method: 'DELETE' })
+      .then(() => loadData())
+      .catch((err) => console.error('Gagal hapus lokasi:', err));
+  };
+
+  const filtered = titik.filter((i) => i.nama.toLowerCase().includes(search.toLowerCase()));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageItems = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  return (
+    <div>
+      <div className="toolbar">
+        <Tabs tabs={[{ key: 'semua', label: 'Semua titik', count: filtered.length }]} active="semua" onChange={() => {}} />
+        <button className="btn-primary" onClick={() => { resetForm(); setShowForm(true); }}>+ Tambah</button>
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleSubmit} className="panel-form">
+          <p className="panel-form__hint">Klik peta untuk mengisi latitude dan longitude secara otomatis, atau ketik manual.</p>
+          <div className="lok-admin-peta">
+            <PetaLokasi titik={titik.filter((t) => t.id !== editingId)} pilihan={pilihan} onPilih={pilihDariPeta} tinggi={300} />
+          </div>
+          <div className="panel-form__row">
+            <input
+              type="text"
+              placeholder="Nama lokasi, misalnya Kolam Air Panas"
+              value={form.nama}
+              onChange={(e) => setForm({ ...form, nama: e.target.value })}
+            />
+            <input
+              type="text"
+              inputMode="decimal"
+              placeholder="Latitude, misalnya -8.7200000"
+              value={form.latitude}
+              onChange={(e) => setForm({ ...form, latitude: e.target.value })}
+            />
+            <input
+              type="text"
+              inputMode="decimal"
+              placeholder="Longitude, misalnya 120.0200000"
+              value={form.longitude}
+              onChange={(e) => setForm({ ...form, longitude: e.target.value })}
+            />
+          </div>
+          <textarea
+            placeholder="Deskripsi singkat (opsional)"
+            value={form.deskripsi}
+            onChange={(e) => setForm({ ...form, deskripsi: e.target.value })}
+          />
+          {pesan && <p className="set-msg set-msg--error">{pesan}</p>}
+          <div className="panel-form__actions">
+            <button type="submit" className="btn-primary">{editingId ? 'Simpan perubahan' : 'Tambah'}</button>
+            <button type="button" onClick={resetForm} className="btn-ghost">Batal</button>
+          </div>
+        </form>
+      )}
+
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Nama</th>
+            <th>Latitude</th>
+            <th>Longitude</th>
+            <th>Deskripsi</th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {loading && <tr className="row-empty"><td colSpan={5}>Memuat data...</td></tr>}
+          {!loading && filtered.length === 0 && <tr className="row-empty"><td colSpan={5}>Belum ada titik lokasi.</td></tr>}
+          {pageItems.map((item) => (
+            <tr key={item.id}>
+              <td className="cell-strong">{item.nama}</td>
+              <td className="cell-muted">{item.lat}</td>
+              <td className="cell-muted">{item.lng}</td>
+              <td className="cell-muted cell-wrap">{item.deskripsi}</td>
+              <td>
+                <div className="row-actions">
+                  <button onClick={() => handleEdit(item)} className="icon-btn" title="Edit">✎</button>
+                  <button onClick={() => handleDelete(item.id)} className="icon-btn icon-btn--danger" title="Hapus">✕</button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <Pagination page={currentPage} pageSize={PAGE_SIZE} total={filtered.length} onChange={setPage} />
+    </div>
+  );
+}
+
 /* ===================== PENGATURAN AKUN ===================== */
 const PASSWORD_MIN = 8;
 
@@ -675,6 +827,7 @@ const navItems = [
   { key: 'fasilitas', label: 'Fasilitas', icon: '✚' },
   { key: 'galeri', label: 'Galeri', icon: '▣' },
   { key: 'pesan', label: 'Pesan', icon: '✉' },
+  { key: 'lokasi', label: 'Lokasi', icon: '⌖' },
   { key: 'pengaturan', label: 'Pengaturan', icon: '⚙' },
 ];
 
@@ -686,6 +839,7 @@ function Admin() {
   const fasilitasRes = useResource('fasilitas');
   const galeriRes = useResource('galeri');
   const pesanRes = useResource('pesan');
+  const lokasiRes = useResource('lokasi');
 
   const counts = {
     dayaTarik: dayaTarikRes.items.length,
@@ -701,6 +855,7 @@ function Admin() {
     fasilitas: { title: 'Fasilitas', subtitle: `${counts.fasilitas} data ditemukan` },
     galeri: { title: 'Galeri', subtitle: `${counts.galeri} foto tersimpan` },
     pesan: { title: 'Pesan Masuk', subtitle: `${counts.pesan} pesan, ${unread} belum dibaca` },
+    lokasi: { title: 'Lokasi', subtitle: `${lokasiRes.items.length} titik lokasi objek wisata` },
     pengaturan: { title: 'Pengaturan', subtitle: 'Kelola akun dan keamanan admin' },
   }[active];
 
@@ -762,6 +917,7 @@ function Admin() {
         {active === 'fasilitas' && <DataManager key="fasilitas" res={fasilitasRes} search={search} />}
         {active === 'galeri' && <GaleriManager res={galeriRes} search={search} />}
         {active === 'pesan' && <PesanManager res={pesanRes} search={search} />}
+        {active === 'lokasi' && <LokasiManager res={lokasiRes} search={search} />}
         {active === 'pengaturan' && <PengaturanAkun onLogout={handleLogout} />}
       </main>
 
@@ -1054,6 +1210,8 @@ function Admin() {
           min-height: 70px;
           resize: vertical;
         }
+        .panel-form__hint { margin: 0; color: #888; font-size: 12.5px; }
+        .lok-admin-peta { position: relative; z-index: 0; border: 1px solid #E4E2D6; border-radius: 12px; overflow: hidden; cursor: crosshair; }
         .panel-form__preview { width: 100px; height: 70px; object-fit: cover; border-radius: 6px; }
         .panel-form__actions { display: flex; gap: 10px; }
 
