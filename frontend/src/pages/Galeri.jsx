@@ -428,28 +428,20 @@ function Galeri() {
           filter: brightness(0.75);
         }
         .gal-tile:focus-visible { outline: 2px solid #C8E06A; outline-offset: 3px; }
+        /* Judul foto dari database selalu tampil di bagian bawah foto */
         .gal-tile__caption {
           position: absolute;
-          left: 14px;
-          right: 14px;
-          bottom: 12px;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          padding: 28px 14px 12px;
+          background: linear-gradient(to top, rgba(0, 0, 0, 0.6), transparent);
           color: #FAFAF7;
           font-family: sans-serif;
           font-size: 13.5px;
           font-weight: 600;
           text-align: left;
           text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
-          opacity: 0;
-          transform: translateY(6px);
-          transition: opacity 0.3s ease, transform 0.3s ease;
-        }
-        .gal-tile:hover .gal-tile__caption,
-        .gal-tile:focus-visible .gal-tile__caption {
-          opacity: 1;
-          transform: none;
-        }
-        @media (hover: none) {
-          .gal-tile__caption { opacity: 1; transform: none; }
         }
 
         /* ===== LIGHTBOX ===== */
