@@ -1,7 +1,28 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import danauImg from '../assets/hero.jpg';
 
+// Dipakai jika data kontak di database belum diisi atau gagal dimuat
+const KONTAK_DEFAULT = {
+  telepon: '+62 812-0000-0000',
+  email: 'info@sanonggoang.id',
+  alamat: 'Kecamatan Sano Nggoang, Kabupaten Manggarai Barat, NTT',
+};
+
 function Footer() {
+  const [kontak, setKontak] = useState(KONTAK_DEFAULT);
+
+  // Kontak pengelola diambil dari database (dikelola admin di menu Kontak)
+  useEffect(() => {
+    fetch('http://localhost:5000/api/kontak')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((rows) => {
+        const k = Array.isArray(rows) ? rows[0] : null;
+        if (k) setKontak({ telepon: k.telepon || KONTAK_DEFAULT.telepon, email: k.email || KONTAK_DEFAULT.email, alamat: k.alamat || KONTAK_DEFAULT.alamat });
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <footer
       className="site-footer"
@@ -66,8 +87,8 @@ function Footer() {
 
             <div className="site-footer__col">
               <p className="site-footer__col-title">Kontak Kami</p>
-              <span className="site-footer__text">+62 812-0000-0000</span>
-              <span className="site-footer__text">info@sanonggoang.id</span>
+              <span className="site-footer__text">{kontak.telepon}</span>
+              <span className="site-footer__text">{kontak.email}</span>
               <Link to="/kontak" className="site-footer__underline-link">
                 Hubungi kami
               </Link>
@@ -84,7 +105,7 @@ function Footer() {
 
         {/* ===== GARIS BAWAH ===== */}
         <div className="site-footer__legal">
-          <span>Kecamatan Sano Nggoang, Kabupaten Manggarai Barat, NTT</span>
+          <span>{kontak.alamat}</span>
           <span>© {new Date().getFullYear()} Danau Sano Nggoang — Seluruh hak cipta dilindungi</span>
           {/* Halaman login admin dibuka di tab/jendela baru */}
           <Link to="/login" target="_blank" rel="noopener noreferrer" className="site-footer__admin-btn">

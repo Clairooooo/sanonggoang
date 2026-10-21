@@ -24,7 +24,10 @@ function Profil() {
   return (
     <div style={{ fontFamily: 'Georgia, serif', marginTop: -72 }}>
       {/* ===== HERO (gaya sama dengan Fasilitas) ===== */}
-      <header className="pro-hero" style={{ backgroundImage: `url(${heroImg})` }}>
+      <header
+        className="pro-hero"
+        style={{ backgroundImage: `url(${profil?.gambar ? `http://localhost:5000${profil.gambar}` : heroImg})` }}
+      >
         <div className="pro-hero__overlay" />
         <div className="pro-hero__content">
           <p className="pro-hero__kicker">✦ Profil Kawasan</p>
@@ -43,6 +46,21 @@ function Profil() {
             tiga sisi: geografis, geologis, dan sosial-budaya, agar lebih mudah dipahami.
           </p>
         </div>
+
+        {/* ===== SEJARAH (diisi admin di menu Profil) ===== */}
+        {profil?.sejarah && (
+          <section className="pa-chapter">
+            <div className="pa-chapter__head">
+              <p className="pa-chapter__label">Sejarah</p>
+              <h2>Sejarah Kawasan</h2>
+            </div>
+            <div className="pa-text">
+              {profil.sejarah.split(/\n+/).filter(Boolean).map((p, i) => (
+                <p key={i}>{p}</p>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ===== BAGIAN 01: GEOGRAFIS ===== */}
         <section className="pa-chapter">

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import heroImg from '../assets/vestifalcaci.jpg';
 import caciImg from '../assets/hero2.jpg';
 import JelajahSections from '../components/JelajahSections';
@@ -48,6 +49,28 @@ const faqFestival = [
 ];
 
 function Festival() {
+  const [festival, setFestival] = useState([]);
+  const [memuat, setMemuat] = useState(true);
+  const [gagal, setGagal] = useState(false);
+
+  // Daftar festival diambil dari database (dikelola admin di menu Festival)
+  useEffect(() => {
+    fetch('http://localhost:5000/api/festival')
+      .then((res) => {
+        if (!res.ok) throw new Error(`Status ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        setFestival(Array.isArray(data) ? data : []);
+        setMemuat(false);
+      })
+      .catch((err) => {
+        console.error('Gagal ambil data festival:', err);
+        setGagal(true);
+        setMemuat(false);
+      });
+  }, []);
+
   return (
     <div className="fes" style={{ fontFamily: 'Georgia, serif', marginTop: -72, background: '#FBFAF6' }}>
       {/* ===== HERO (gaya sama dengan Daya Tarik, Fasilitas, Lokasi) ===== */}
@@ -81,6 +104,32 @@ function Festival() {
             perisai. Bagi masyarakat setempat, luka yang muncul dipandang sebagai
             simbol pengorbanan dan harapan akan berkah bagi kampung.
           </p>
+        </div>
+      </section>
+
+      {/* ===== DAFTAR FESTIVAL (dari database) ===== */}
+      <section className="fes-daftar">
+        <p className="eyebrow">Agenda Budaya</p>
+        <h2>Daftar festival di kawasan Sano Nggoang</h2>
+        {memuat && <p className="fes-muted">Memuat daftar festival...</p>}
+        {gagal && <p className="fes-muted">Daftar festival gagal dimuat. Silakan coba lagi nanti.</p>}
+        {!memuat && !gagal && festival.length === 0 && (
+          <p className="fes-muted">Belum ada festival yang ditambahkan oleh pengelola.</p>
+        )}
+        <div className="fes-daftar__grid">
+          {festival.map((f) => (
+            <article key={f.id} className="fes-item">
+              <div
+                className="fes-item__foto"
+                style={f.gambar ? { backgroundImage: `url(http://localhost:5000${f.gambar})` } : undefined}
+              />
+              <div className="fes-item__isi">
+                <h3>{f.nama}</h3>
+                {f.jadwal && <p className="fes-item__jadwal">{f.jadwal}</p>}
+                {f.deskripsi && <p>{f.deskripsi}</p>}
+              </div>
+            </article>
+          ))}
         </div>
       </section>
 
@@ -201,6 +250,17 @@ function Festival() {
           margin: 0 0 16px;
         }
 
+        /* DAFTAR FESTIVAL */
+        .fes-daftar { max-width: 1200px; margin: 0 auto; padding: 0 48px 88px; }
+        .fes-muted { font-family: sans-serif; color: #888; font-size: 13.5px; }
+        .fes-daftar__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; margin-top: 8px; }
+        .fes-item { background: #fff; border: 1px solid #E2E0D5; border-radius: 18px; overflow: hidden; }
+        .fes-item__foto { height: 170px; background: linear-gradient(160deg, #7A2E0E 0%, #B85C1E 55%, #E8A24C 100%); background-size: cover; background-position: center; }
+        .fes-item__isi { padding: 18px 20px 22px; }
+        .fes-item__isi h3 { margin: 0 0 6px; color: #04342C; font-size: 18px; font-weight: normal; }
+        .fes-item__jadwal { font-family: sans-serif; color: #0F6E56; font-size: 12.5px; font-weight: 600; margin: 0 0 8px; }
+        .fes-item__isi p:not(.fes-item__jadwal) { font-family: sans-serif; color: #5F5E5A; font-size: 13px; line-height: 1.7; margin: 0; }
+
         /* MAKNA */
         .fes-makna { background: #0B2313; }
         .fes-makna__inner { max-width: 1200px; margin: 0 auto; padding: 88px 48px; }
@@ -261,6 +321,7 @@ function Festival() {
           .fes-about { grid-template-columns: 1fr; padding: 64px 24px; gap: 32px; }
           .fes-about__photo { min-height: 280px; }
           .fes-makna__inner { padding: 64px 24px; }
+          .fes-daftar { padding: 0 24px 64px; }
           .fes-makna__grid { grid-template-columns: 1fr; }
           .fes-etika { grid-template-columns: 1fr; padding: 64px 24px 0; gap: 28px; }
         }

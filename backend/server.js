@@ -219,6 +219,7 @@ db.connect((err) => {
   }
   console.log('Berhasil konek ke database MySQL');
   siapkanAkunAdmin();
+  siapkanTabelFestival();
 });
 
 app.get('/api/test', (req, res) => {
@@ -227,10 +228,39 @@ app.get('/api/test', (req, res) => {
 
 // GET semua data profil
 app.get('/api/profil', (req, res) => {
-  db.query('SELECT * FROM profil', (err, results) => {
+  db.query('SELECT * FROM profil ORDER BY id LIMIT 1', (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(results);
   });
+});
+
+// Profil dan kontak hanya punya satu baris data: ubah baris itu jika ada, buat baru jika belum ada
+function simpanSatuBaris(tabel, kolom, nilai, res) {
+  db.query(`SELECT id FROM ${tabel} ORDER BY id LIMIT 1`, (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    const sql = rows.length
+      ? `UPDATE ${tabel} SET ${kolom.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`
+      : `INSERT INTO ${tabel} (${kolom.join(', ')}) VALUES (${kolom.map(() => '?').join(', ')})`;
+    const params = rows.length ? [...nilai, rows[0].id] : nilai;
+    db.query(sql, params, (err2) => {
+      if (err2) return res.status(500).json({ error: err2.message });
+      res.json({ message: 'Berhasil disimpan' });
+    });
+  });
+}
+
+// PUT ubah profil kawasan (judul, isi, sejarah, gambar)
+app.put('/api/profil', wajibAdmin, upload.single('gambar'), (req, res) => {
+  const { judul, isi, sejarah, gambarLama } = req.body;
+  if (!judul || !String(judul).trim()) return res.status(400).json({ error: 'Judul wajib diisi' });
+  if (!isi || !String(isi).trim()) return res.status(400).json({ error: 'Isi profil wajib diisi' });
+  const gambar = req.file ? `/uploads/${req.file.filename}` : gambarLama || null;
+  simpanSatuBaris(
+    'profil',
+    ['judul', 'isi', 'sejarah', 'gambar'],
+    [String(judul).trim(), String(isi).trim(), sejarah || null, gambar],
+    res
+  );
 });
 
 // GET semua data daya tarik wisata
@@ -317,9 +347,83 @@ app.delete('/api/lokasi/:id', wajibAdmin, (req, res) => {
 
 // GET data kontak
 app.get('/api/kontak', (req, res) => {
-  db.query('SELECT * FROM kontak', (err, results) => {
+  db.query('SELECT * FROM kontak ORDER BY id LIMIT 1', (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(results);
+  });
+});
+
+// PUT ubah kontak pengelola (dipakai di halaman Kontak dan footer)
+app.put('/api/kontak', wajibAdmin, (req, res) => {
+  const { nama_instansi, telepon, email, alamat } = req.body || {};
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) {
+    return res.status(400).json({ error: 'Format email tidak valid' });
+  }
+  simpanSatuBaris(
+    'kontak',
+    ['nama_instansi', 'telepon', 'email', 'alamat'],
+    [nama_instansi || null, telepon || null, email ? String(email).trim() : null, alamat || null],
+    res
+  );
+});
+
+// ===== FESTIVAL: daftar festival/acara budaya =====
+// Tabel dibuat otomatis jika belum ada (dipanggil saat backend tersambung ke database)
+function siapkanTabelFestival() {
+  db.query(
+    `CREATE TABLE IF NOT EXISTS festival (
+      id INT(11) NOT NULL AUTO_INCREMENT,
+      nama VARCHAR(150) NOT NULL,
+      jadwal VARCHAR(150) DEFAULT NULL,
+      deskripsi TEXT DEFAULT NULL,
+      gambar VARCHAR(255) DEFAULT NULL,
+      PRIMARY KEY (id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
+    (err) => {
+      if (err) console.error('Gagal menyiapkan tabel festival:', err.message);
+    }
+  );
+}
+
+app.get('/api/festival', (req, res) => {
+  db.query('SELECT * FROM festival ORDER BY id', (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
+  });
+});
+
+app.post('/api/festival', wajibAdmin, upload.single('gambar'), (req, res) => {
+  const { nama, jadwal, deskripsi } = req.body;
+  if (!nama || !String(nama).trim()) return res.status(400).json({ error: 'Nama wajib diisi' });
+  const gambar = req.file ? `/uploads/${req.file.filename}` : null;
+  db.query(
+    'INSERT INTO festival (nama, jadwal, deskripsi, gambar) VALUES (?, ?, ?, ?)',
+    [String(nama).trim(), jadwal || null, deskripsi || null, gambar],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: result.insertId });
+    }
+  );
+});
+
+app.put('/api/festival/:id', wajibAdmin, upload.single('gambar'), (req, res) => {
+  const { nama, jadwal, deskripsi, gambarLama } = req.body;
+  if (!nama || !String(nama).trim()) return res.status(400).json({ error: 'Nama wajib diisi' });
+  const gambar = req.file ? `/uploads/${req.file.filename}` : gambarLama || null;
+  db.query(
+    'UPDATE festival SET nama = ?, jadwal = ?, deskripsi = ?, gambar = ? WHERE id = ?',
+    [String(nama).trim(), jadwal || null, deskripsi || null, gambar, req.params.id],
+    (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ message: 'Berhasil diperbarui' });
+    }
+  );
+});
+
+app.delete('/api/festival/:id', wajibAdmin, (req, res) => {
+  db.query('DELETE FROM festival WHERE id = ?', [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: 'Berhasil dihapus' });
   });
 });
 
